@@ -8,6 +8,7 @@ import Editor from './Editor';
 import Items from './Items';
 import Map from './Map';
 import Shop from './Shop';
+import ItemRewardModal from './ItemRewardModal';
 import { GameButton } from './GameButton';
 import { useEffect, useState } from 'react';
 import { getLatestSave } from '../server/controllers/getResult';
@@ -91,28 +92,8 @@ export default function Game() {
         await executeGameLoop(nodes);
         setIsRunning(false);
 
-        // Check if enemy defeated
-        import('../store/game').then(mod => {
-            const enemy = mod.enemyStore.get();
-            if (enemy.hp <= 0) {
-                // Advance event
-                const result = mod.advanceToNextEvent();
-                if (!result.event) return;
-                if (result.wrapped || result.event === 'select') {
-                    // Enter boss battle on wrap
-                    mod.gameStateStore.set('BOSS');
-                    mod.currentEventIndexStore.set(-1); // no outer node focus in boss
-                    mod.startBossEncounter();
-                } else if (result.event === 'battle') {
-                    mod.gameStateStore.set('BATTLE');
-                    mod.startBattleEncounter();
-                } else if (result.event === 'shop') {
-                    mod.gameStateStore.set('SHOP');
-                }
-                // Auto-save or sync removed as per snapshot-only architecture.
-                // User must manually save to persist progress.
-            }
-        });
+        // イベント進行はItemRewardModalの「次に進む」ボタンで処理されるため、
+        // ここでは何もしない（敵を倒したときはモーダルが表示される）
     };
 
     return (
@@ -195,6 +176,9 @@ export default function Game() {
                     </div>
                 </>
             )}
+
+            {/* Item Reward Modal */}
+            <ItemRewardModal />
         </div>
     );
 }

@@ -1,12 +1,16 @@
 'use client';
 
+import { useState } from 'react';
 import { useStore } from '@nanostores/react';
 import { itemNodesStore, mainNodesStore, gameStateStore, selectedShopItemIndexStore, handleShopSwap, setShopFocusArea } from '../store/game';
+import { getItemDescription } from '../lib/itemDefinitions';
 
 export default function Items() {
   const items = useStore(itemNodesStore);
   const gameState = useStore(gameStateStore);
   const selectedShopItemIndex = useStore(selectedShopItemIndexStore);
+  const [hoveredItemIndex, setHoveredItemIndex] = useState<number | null>(null);
+  const [showInfo, setShowInfo] = useState<number | null>(null);
 
   const isShop = gameState === 'SHOP';
   const isSwapMode = isShop && selectedShopItemIndex !== null;
@@ -21,34 +25,67 @@ export default function Items() {
         Item {isSwapMode && <span className="text-sm font-normal text-yellow-200">(交換モード)</span>}
       </h2>
       <div className="flex flex-col items-center gap-4">
-        {items.map((item, index) => (
-          <button
-            key={item.id}
-            onClick={() => {
-                if (isSwapMode) {
-                  handleShopSwap(index);
-                  return;
-                }
+        {items.map((item, index) => {
+          const isHovered = hoveredItemIndex === index;
+          const isShowingInfo = showInfo === index;
 
-                const newItems = [...items];
-                newItems.splice(index, 1);
-                itemNodesStore.set(newItems);
-                mainNodesStore.set([...mainNodesStore.get(), item]);
-            }}
-            className={`w-full max-w-[260px] h-[120px] bg-[#D9D9D9] border-8 border-[#C4AE4B] p-4 rounded-xl shadow-md flex flex-col items-center justify-center gap-2 transition-transform active:scale-95 hover:bg-gray-50
-                ${isShop ? 'cursor-pointer' : ''} ${isSwapMode ? 'ring-2 ring-yellow-300' : ''}`}
-          >
-            {/* Icon placeholder */}
-            <div className="w-12 h-12">
-               <img 
-                 src={`/asset/ui/${item.type}.svg`} 
-                 alt={item.type}
-                 className="w-full h-full"
-               />
+          return (
+            <div
+              key={item.id}
+              className="relative w-full max-w-[260px] h-[120px]"
+              onMouseEnter={() => setHoveredItemIndex(index)}
+              onMouseLeave={() => {
+                setHoveredItemIndex(null);
+                setShowInfo(null);
+              }}
+            >
+              <button
+                onClick={() => {
+                  if (isSwapMode) {
+                    handleShopSwap(index);
+                    return;
+                  }
+
+                  const newItems = [...items];
+                  newItems.splice(index, 1);
+                  itemNodesStore.set(newItems);
+                  mainNodesStore.set([...mainNodesStore.get(), item]);
+                }}
+                className={`w-full h-full bg-[#D9D9D9] border-8 border-[#C4AE4B] p-4 rounded-xl shadow-md transition-transform active:scale-95 hover:bg-gray-50 relative
+                  ${isShop ? 'cursor-pointer' : ''} ${isSwapMode ? 'ring-2 ring-yellow-300' : ''}`}
+              >
+                {!isShowingInfo ? (
+                  <>
+                    <div className="w-12 h-12 mx-auto">
+                      <img
+                        src={`/asset/ui/${item.type}.svg`}
+                        alt={item.type}
+                        className="w-full h-full"
+                      />
+                    </div>
+                    <span className="font-mono font-bold text-gray-800 block text-center mt-2">{item.label}</span>
+                  </>
+                ) : (
+                  <div className="w-full h-full overflow-y-auto text-left p-2">
+                    <p className="text-sm text-gray-800 leading-relaxed">{getItemDescription(item.label)}</p>
+                  </div>
+                )}
+              </button>
+
+              {isHovered && !isShowingInfo && (
+                <div
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowInfo(index);
+                  }}
+                  className="absolute top-3 right-3 w-6 h-6 opacity-70 hover:opacity-100 transition-opacity cursor-pointer"
+                >
+                  <img src="/asset/ui/info.svg" alt="info" className="w-full h-full pointer-events-none" />
+                </div>
+              )}
             </div>
-            <span className="font-mono font-bold text-gray-800">{item.label}</span>
-          </button>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

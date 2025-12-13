@@ -1,29 +1,21 @@
 'use client';
 
+import { useState } from 'react';
 import { useStore } from '@nanostores/react';
 import { shopItemsStore, gameStateStore, currentEventIndexStore, selectedShopItemIndexStore, shopFocusAreaStore, setShopFocusArea, shopLogStore, advanceToNextEvent, startBattleEncounter, startBossEncounter, addShopLog } from '../store/game';
-
+import { getItemDescription } from '../lib/itemDefinitions';
 
 export default function Shop() {
     const shopItems = useStore(shopItemsStore);
     const selectedShopItemIndex = useStore(selectedShopItemIndexStore);
     const shopFocusArea = useStore(shopFocusAreaStore);
     const shopLogs = useStore(shopLogStore);
+    const [hoveredItemIndex, setHoveredItemIndex] = useState<number | null>(null);
+    const [showInfo, setShowInfo] = useState<number | null>(null);
 
-    const handleShopItemClick = async (index: number) => {
-        const item = shopItems[index];
-        // For now, we just simulate purchase. In real app, check cost.
-
-        // Add to local inventory directly
-        import('../store/game').then(mod => {
-            const currentItems = mod.itemNodesStore.get();
-            // Duplicate check or allow multiples? Let's allow for now or check unique ID if needed.
-            // For this game, code snippets are unique tools?
-            // Let's just add it.
-            mod.itemNodesStore.set([...currentItems, item]);
-        });
-
-        addShopLog(`「${item.label}」を購入したよ！`);
+    const handleShopItemClick = (index: number) => {
+        selectedShopItemIndexStore.set(index);
+        addShopLog(`「${shopItems[index].label}」を選択したよ！手持ちのアイテムと交換してね！`);
     };
 
     const handleExit = () => {
@@ -73,21 +65,55 @@ export default function Shop() {
                 </div>
 
                 <div className="w-full max-w-4xl mx-auto bg-gray-700 p-4 md:p-6 rounded-lg shadow-inner flex flex-wrap justify-center gap-4 overflow-y-auto min-h-0">
-                    {shopItems.map((item, index) => (
-                        <button
-                            key={item.id}
-                            onClick={() => handleShopItemClick(index)}
-                            className={`w-full max-w-[320px] h-[120px] bg-[#D9D9D9] border-8 border-[#C4AE4B] p-4 rounded-xl shadow-md flex flex-col items-center justify-center gap-2 transition-transform active:scale-95 hover:bg-gray-50
-                        ${selectedShopItemIndex === index
-                                    ? 'bg-yellow-100 border-yellow-500 scale-105 shadow-[0_0_15px_rgba(255,215,0,0.7)]'
-                                    : ''}`}
-                        >
-                            <div className="w-10 h-10 mb-1">
-                                <img src={`/asset/ui/${item.type}.svg`} alt={item.type} className="w-full h-full" />
+                    {shopItems.map((item, index) => {
+                        const isHovered = hoveredItemIndex === index;
+                        const isShowingInfo = showInfo === index;
+
+                        return (
+                            <div
+                                key={item.id}
+                                className="relative w-full max-w-[320px] h-[120px]"
+                                onMouseEnter={() => setHoveredItemIndex(index)}
+                                onMouseLeave={() => {
+                                    setHoveredItemIndex(null);
+                                    setShowInfo(null);
+                                }}
+                            >
+                                <button
+                                    onClick={() => handleShopItemClick(index)}
+                                    className={`w-full h-full bg-[#D9D9D9] border-8 border-[#C4AE4B] p-4 rounded-xl shadow-md transition-transform active:scale-95 hover:bg-gray-50 relative
+                                    ${selectedShopItemIndex === index
+                                        ? 'bg-yellow-100 border-yellow-500 scale-105 shadow-[0_0_15px_rgba(255,215,0,0.7)]'
+                                        : ''}`}
+                                >
+                                    {!isShowingInfo ? (
+                                        <>
+                                            <div className="w-10 h-10 mb-1 mx-auto">
+                                                <img src={`/asset/ui/${item.type}.svg`} alt={item.type} className="w-full h-full" />
+                                            </div>
+                                            <span className="font-mono font-bold text-gray-800 block text-center">{item.label}</span>
+                                        </>
+                                    ) : (
+                                        <div className="w-full h-full overflow-y-auto text-left p-2">
+                                            <p className="text-sm text-gray-800 leading-relaxed">{getItemDescription(item.label)}</p>
+                                        </div>
+                                    )}
+                                </button>
+
+                                {isHovered && !isShowingInfo && (
+                                    <div
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setShowInfo(index);
+                                        }}
+                                        className="absolute top-2 right-2 w-6 h-6 opacity-70 hover:opacity-100 transition-opacity cursor-pointer"
+                                    >
+                                        <img src="/asset/ui/info.svg" alt="info" className="w-full h-full pointer-events-none" />
+                                    </div>
+                                )}
                             </div>
-                            <span className="font-mono font-bold text-gray-800">{item.label}</span>
-                        </button>
-                    ))}
+                        );
+                    })}
                 </div>
 
                 <div className="w-full max-w-4xl mx-auto flex items-center justify-center mt-8">

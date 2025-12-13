@@ -1,99 +1,175 @@
-import { playerStore, enemyStore, addLog } from '../store/game';
+import { playerStore, enemyStore, addLog, generateRewardItems } from '../store/game';
 import type { NodeItem } from '../store/game';
+import {
+  findItemDefinitionByLabel,
+  extractParametersFromLabel,
+  type GameContext,
+  type ValueType,
+  type ElementType,
+} from './itemDefinitions';
 
+/**
+ * NodeItemの配列からJavaScriptコードを生成する汎用トランスパイラ
+ */
 export const transpile = (nodes: NodeItem[]): string => {
   let code = "(async () => {\n";
-  code += "  let n = 0;\n"; // Default variable n
-  
+
+  // 初期変数の宣言
+  code += "  let n = 0;\n";
+  code += "  let enemyType = undefined;\n";
+  code += "  let atkType = undefined;\n";
+
+  // 各ノードをコードに変換
   for (const node of nodes) {
-    code += `  ${node.code}\n`;
+    const itemDef = findItemDefinitionByLabel(node.label);
+
+    if (itemDef) {
+      // アイテム定義から動的にコード生成
+      const params = extractParametersFromLabel(node.label);
+      const generatedCode = itemDef.generateCode(params);
+      code += `  ${generatedCode}\n`;
+    } else {
+      // フォールバック: node.codeをそのまま使用
+      code += `  ${node.code}\n`;
+    }
   }
-  
+
   code += "})();";
   return code;
 };
 
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
 
+/**
+ * ゲームコードを実行する汎用実行エンジン
+ */
 export const executeGameLoop = async (nodes: NodeItem[]) => {
   const code = transpile(nodes);
-  addLog(`Running code...`);
-  
-  // Define context functions
-  const context = {
-    atk: async () => {
-      const player = playerStore.get();
-      const enemy = enemyStore.get();
-      
-      // BP Check
-      let currentBp = player.bp - 1;
-      playerStore.setKey('bp', currentBp);
-      
-      if (currentBp < 0) {
-        // Penalty logic: Add deficit to Enemy BP
-        const penalty = Math.abs(currentBp);
-        addLog(`BP Depleted! Enemy gains ${penalty} BP.`);
-        enemyStore.setKey('bp', enemy.bp + penalty);
+  addLog(`コード実行中...`);
+
+  // ゲームコンテキストの構築
+  const gameContext: GameContext = {
+    player: { ...playerStore.get() },
+    enemy: { ...enemyStore.get() },
+    variables: {},
+    log: addLog,
+    sleep,
+    updatePlayer: (updates) => {
+      gameContext.player = { ...gameContext.player, ...updates };
+      for (const [key, value] of Object.entries(updates)) {
+        if (key in gameContext.player) {
+          playerStore.setKey(key as keyof GameContext['player'], value);
+        }
       }
-      
-      // Attack logic
-      addLog(`Player attacks! ${player.atk} damage.`);
-      enemyStore.setKey('hp', Math.max(0, enemy.hp - player.atk));
-      
-      await sleep(500); // Animation delay
     },
-    atk_inc: async () => {
-       const player = playerStore.get();
-       playerStore.setKey('atk', player.atk + 5); // Arbitrary increase
-       addLog(`Player ATK increased to ${player.atk + 5}`);
-       await sleep(200);
+    updateEnemy: (updates) => {
+      gameContext.enemy = { ...gameContext.enemy, ...updates };
+      for (const [key, value] of Object.entries(updates)) {
+        if (key in gameContext.enemy) {
+          enemyStore.setKey(key as keyof GameContext['enemy'], value);
+        }
+      }
     },
-    heal: async () => {
-       const player = playerStore.get();
-       playerStore.setKey('hp', Math.min(player.maxHp, player.hp + 10));
-       addLog(`Player healed. HP: ${Math.min(player.maxHp, player.hp + 10)}`);
-       await sleep(200);
-    },
-    bp_inc: async () => {
-       const player = playerStore.get();
-       playerStore.setKey('bp', player.bp + 1);
-       addLog(`Player BP +1`);
-       await sleep(200);
+  };
+
+  // 実行コンテキスト用の関数群を動的に生成
+  type ContextFunction = (paramValue?: number | string) => Promise<void> | string | undefined;
+  const contextFunctions: Record<string, ContextFunction> = {};
+
+  // 各ノードの実行アクションを登録
+  for (const node of nodes) {
+    const itemDef = findItemDefinitionByLabel(node.label);
+    if (itemDef?.executeAction) {
+      const params = extractParametersFromLabel(node.label);
+
+      // 関数名を抽出（例: "await atk()" → "atk"）
+      const funcNameMatch = itemDef.generateCode(params).match(/(\w+)\s*\(/);
+      if (funcNameMatch) {
+        const funcName = funcNameMatch[1];
+
+        // 既に登録されていなければ追加
+        if (!contextFunctions[funcName]) {
+          contextFunctions[funcName] = async (paramValue?: number | string) => {
+            // パラメータ付きの場合は引数を使用、なければラベルから抽出
+            let execParams: Record<string, ValueType | ElementType> | undefined;
+            if (paramValue !== undefined) {
+              if (typeof paramValue === 'number' && (paramValue === 1 || paramValue === 2 || paramValue === 3)) {
+                execParams = { value: paramValue as ValueType };
+              } else if (typeof paramValue === 'string' && (paramValue === 'water' || paramValue === 'fire' || paramValue === 'grass')) {
+                execParams = { type: paramValue as ElementType };
+              }
+            } else {
+              execParams = params;
+            }
+            await itemDef.executeAction!(gameContext, execParams);
+          };
+        }
+      }
     }
+  }
+
+  // 基本関数の追加（既存のアイテムで定義されていない場合）
+  if (!contextFunctions.atk) {
+    const atkDef = findItemDefinitionByLabel('atk()');
+    if (atkDef?.executeAction) {
+      contextFunctions.atk = async () => {
+        await atkDef.executeAction!(gameContext);
+      };
+    }
+  }
+
+  // searchEnemyTypes関数
+  contextFunctions.searchEnemyTypes = () => {
+    const type = gameContext.enemy.type;
+    gameContext.variables.enemyType = type;
+    return type;
   };
 
   try {
-    // Create a safe-ish execution environment
-    // We use new Function but wrap it to inject our context
-    const run = new Function('context', `
-      const { atk, atk_inc, heal, bp_inc } = context;
+    // 安全な実行環境を構築
+    const functionArgs = Object.keys(contextFunctions);
+    const functionValues = Object.values(contextFunctions);
+
+    const run = new Function(
+      ...functionArgs,
+      'atkType',
+      'enemyType',
+      `
       return ${code}
-    `);
-    
-    await run(context);
+      `
+    );
+
+    await run(
+      ...functionValues,
+      gameContext.player.atkType,
+      gameContext.variables.enemyType
+    );
   } catch (e) {
-    addLog(`Error: ${e}`);
-    // console.error(e); // Suppress console error to avoid Next.js overlay
-  }
-    
-  // Enemy Turn Logic
-  const enemy = enemyStore.get();
-  if (enemy.hp > 0) {
-      addLog(`Enemy Turn! BP: ${enemy.bp}`);
-      await sleep(500);
-      
-      const damage = enemy.atk * enemy.bp;
-      addLog(`Enemy attacks ${enemy.bp} times! Total Damage: ${damage}`);
-      
-      const currentPlayer = playerStore.get();
-      playerStore.setKey('hp', Math.max(0, currentPlayer.hp - damage));
-  } else {
-      addLog("Enemy Defeated!");
+    addLog(`エラー: ${e}`);
+    console.error('Transpiler execution error:', e);
   }
 
-  // End of Turn Logic
+  // 敵のターン処理
+  const enemy = enemyStore.get();
+  if (enemy.hp > 0) {
+    addLog(`敵のターン！BP: ${enemy.bp}`);
+    await sleep(500);
+
+    const damage = enemy.atk * enemy.bp;
+    addLog(`敵が${enemy.bp}回攻撃！合計ダメージ: ${damage}`);
+
+    const currentPlayer = playerStore.get();
+    playerStore.setKey('hp', Math.max(0, currentPlayer.hp - damage));
+  } else {
+    addLog("敵を倒した！");
+    await sleep(500);
+    // アイテム獲得モーダルを表示
+    generateRewardItems();
+  }
+
+  // ターン終了処理
   await sleep(1000);
-  addLog("Turn End. Resetting BP.");
+  addLog("ターン終了。BPをリセット。");
   playerStore.setKey('bp', playerStore.get().maxBp);
   enemyStore.setKey('bp', enemyStore.get().maxBp);
 };

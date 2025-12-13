@@ -1,4 +1,5 @@
 import { atom, map } from 'nanostores';
+import type { ElementType } from '../lib/itemDefinitions';
 
 export type Entity = {
   hp: number;
@@ -6,16 +7,18 @@ export type Entity = {
   atk: number;
   bp: number;
   maxBp: number;
+  type?: ElementType; // 敵の属性タイプ
+  atkType?: ElementType; // プレイヤーの攻撃タイプ
 };
 
-export type NodeType = 'attack' | 'heal' | 'syntax' | 'behavior';
+export type NodeType = 'attack' | 'heal' | 'syntax' | 'behavior' | 'element';
 
 export type NodeItem = {
   id: string;
-  label: string;
-  code: string; // The actual code snippet
+  label: string; // ユーザーに表示される名前（例: "atk+=2", "n=3"）
+  code?: string; // 後方互換性のため残す（transpilerで自動生成されるため不要になる）
   type: NodeType;
-  indent?: number; // For visual indentation if we want
+  indent?: number; // 視覚的なインデント
 };
 
 export type GameState = 'START' | 'MAP' | 'BATTLE' | 'SHOP' | 'BOSS';
@@ -29,12 +32,17 @@ export const currentEventIndexStore = atom<number>(0);
 export const traversalDirectionStore = atom<1 | -1>(1);
 export const battleCountStore = atom<number>(0);
 
+// アイテム獲得モーダル用のストア
+export const showItemRewardModalStore = atom<boolean>(false);
+export const rewardItemsStore = atom<NodeItem[]>([]);
+
 const baseEnemyStats: Entity = {
   hp: 10,
   maxHp: 10,
   atk: 20,
   bp: 5,
   maxBp: 5,
+  type: 'fire', // デフォルトの敵タイプ
 };
 
 const bossStats: Entity = {
@@ -43,6 +51,7 @@ const bossStats: Entity = {
   atk: 30,
   bp: 8,
   maxBp: 8,
+  type: 'grass', // ボスのタイプ
 };
 
 export const selectedShopItemIndexStore = atom<number | null>(null);
@@ -78,16 +87,22 @@ export const advanceToNextEvent = (): { event: EventType | null; wrapped: boolea
   return { event: events[next], wrapped };
 };
 
-export const computeScaledEnemyStats = (count: number) => {
+export const computeScaledEnemyStats = (count: number): Entity => {
   const hp = baseEnemyStats.maxHp + count * 8;
   const bp = baseEnemyStats.maxBp + Math.floor(count / 2);
   const atk = baseEnemyStats.atk + count * 2;
+
+  // 敵のタイプをランダムに決定
+  const types: ElementType[] = ['water', 'fire', 'grass'];
+  const randomType = types[Math.floor(Math.random() * types.length)];
+
   return {
     hp,
     maxHp: hp,
     atk,
     bp,
     maxBp: bp,
+    type: randomType,
   };
 };
 
@@ -96,10 +111,26 @@ export const startBattleEncounter = () => {
   const stats = computeScaledEnemyStats(count);
   enemyStore.set(stats);
   battleCountStore.set(count + 1);
+
+  const typeNames: Record<ElementType, string> = {
+    water: '水',
+    fire: '炎',
+    grass: '草',
+  };
+  const typeName = typeNames[stats.type as ElementType];
+  addLog(`${typeName}タイプの敵が現れた！`);
 };
 
 export const startBossEncounter = () => {
   enemyStore.set(bossStats);
+
+  const typeNames: Record<ElementType, string> = {
+    water: '水',
+    fire: '炎',
+    grass: '草',
+  };
+  const typeName = typeNames[bossStats.type as ElementType];
+  addLog(`${typeName}タイプのボスが現れた！`);
 };
 
 export const handleShopSwap = (inventoryIndex: number) => {
@@ -125,17 +156,26 @@ export const handleShopSwap = (inventoryIndex: number) => {
   addShopLog(`「${inventoryItem.label}」と「${shopItem.label}」を交換したよ！`);
 };
 
-// Shop items (randomly generated or fixed for now)
+/**
+ * アイテムをラベルから簡単に生成するヘルパー関数
+ */
+export const createItem = (id: string, label: string, type: NodeType): NodeItem => ({
+  id,
+  label,
+  type,
+});
+
+// Shop items (より汎用的な定義)
 export const shopItemsStore = atom<NodeItem[]>([
-  { id: 'shop-1', label: 'atk+=1', code: 'atk_inc()', type: 'attack' },
-  { id: 'shop-2', label: 'hp+=1', code: 'heal()', type: 'heal' },
-  { id: 'shop-3', label: 'n.times do', code: 'n.times do', type: 'syntax' },
-  { id: 'shop-4', label: 'atk+=1', code: 'atk_inc()', type: 'attack' },
-  { id: 'shop-5', label: 'hp+=1', code: 'heal()', type: 'heal' },
-  { id: 'shop-6', label: 'n.times do', code: 'n.times do', type: 'syntax' },
-  { id: 'shop-7', label: 'atk+=1', code: 'atk_inc()', type: 'attack' },
-  { id: 'shop-8', label: 'hp+=1', code: 'heal()', type: 'heal' },
-  { id: 'shop-9', label: 'n.times do', code: 'n.times do', type: 'syntax' },
+  createItem('shop-1', 'atk+=1', 'attack'),
+  createItem('shop-2', 'hp+=2', 'heal'),
+  createItem('shop-3', 'n.times do', 'syntax'),
+  createItem('shop-4', 'atkType=water', 'element'),
+  createItem('shop-5', 'bp+=1', 'behavior'),
+  createItem('shop-6', 'if enemyType=fire', 'syntax'),
+  createItem('shop-7', 'atk+=2', 'attack'),
+  createItem('shop-8', 'hp+=1', 'heal'),
+  createItem('shop-9', 'enemyType=searchEnemyTypes()', 'element'),
 ]);
 
 export const playerStore = map<Entity>({
@@ -149,21 +189,64 @@ export const playerStore = map<Entity>({
 export const enemyStore = map<Entity>({ ...baseEnemyStats });
 
 export const mainNodesStore = atom<NodeItem[]>([
-  { id: '1', label: 'n=5', code: 'n=5', type: 'syntax' },
+  createItem('main-1', 'n=3', 'syntax'),
 ]);
 
-// Initial available items
+// 初期アイテム（汎用的な定義）
 export const itemNodesStore = atom<NodeItem[]>([
-  { id: 'item-1', label: 'atk()', code: 'await atk()', type: 'attack' },
-  { id: 'item-2', label: 'atk+=1', code: 'atk_inc()', type: 'attack' },
-  { id: 'item-3', label: 'n.times do', code: 'for(let i=0; i<n; i++) {', type: 'syntax' },
-  { id: 'item-4', label: 'hp+=1', code: 'heal()', type: 'heal' },
-  { id: 'item-5', label: 'end', code: '}', type: 'syntax' },
-  { id: 'item-6', label: 'bp+=1', code: 'bp_inc()', type: 'behavior' },
+  createItem('item-1', 'atk()', 'attack'),
+  createItem('item-2', 'atk+=1', 'attack'),
+  createItem('item-3', 'hp+=1', 'heal'),
+  createItem('item-4', 'bp+=1', 'behavior'),
 ]);
 
 export const logStore = atom<string[]>([]);
 
 export const addLog = (msg: string) => {
   logStore.set([...logStore.get(), msg]);
+};
+
+/**
+ * ランダムにアイテムを生成する関数
+ */
+const generateRandomItem = (id: string): NodeItem => {
+  const itemPool = [
+    { label: 'atk+=1', type: 'attack' as NodeType },
+    { label: 'atk+=2', type: 'attack' as NodeType },
+    { label: 'atk+=3', type: 'attack' as NodeType },
+    { label: 'hp+=1', type: 'heal' as NodeType },
+    { label: 'hp+=2', type: 'heal' as NodeType },
+    { label: 'hp+=3', type: 'heal' as NodeType },
+    { label: 'bp+=1', type: 'behavior' as NodeType },
+    { label: 'bp+=2', type: 'behavior' as NodeType },
+    { label: 'bp+=3', type: 'behavior' as NodeType },
+    { label: 'n=1', type: 'syntax' as NodeType },
+    { label: 'n=2', type: 'syntax' as NodeType },
+    { label: 'n=3', type: 'syntax' as NodeType },
+    { label: 'n.times do', type: 'syntax' as NodeType },
+    { label: 'end', type: 'syntax' as NodeType },
+    { label: 'atk()', type: 'attack' as NodeType },
+    { label: 'atkType=water', type: 'element' as NodeType },
+    { label: 'atkType=fire', type: 'element' as NodeType },
+    { label: 'atkType=grass', type: 'element' as NodeType },
+    { label: 'enemyType=searchEnemyTypes()', type: 'element' as NodeType },
+    { label: 'if enemyType=water', type: 'syntax' as NodeType },
+    { label: 'if enemyType=fire', type: 'syntax' as NodeType },
+    { label: 'if enemyType=grass', type: 'syntax' as NodeType },
+  ];
+
+  const randomItem = itemPool[Math.floor(Math.random() * itemPool.length)];
+  return createItem(id, randomItem.label, randomItem.type);
+};
+
+/**
+ * 戦闘勝利時にランダムアイテムを2個獲得
+ */
+export const generateRewardItems = () => {
+  const rewards = [
+    generateRandomItem(`reward-${Date.now()}-1`),
+    generateRandomItem(`reward-${Date.now()}-2`),
+  ];
+  rewardItemsStore.set(rewards);
+  showItemRewardModalStore.set(true);
 };
