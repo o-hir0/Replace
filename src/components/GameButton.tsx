@@ -9,8 +9,30 @@ export function GameButton() {
     const handleClick = async () => {
         setLoading(true)
         try {
-            // Example data
-            await recordGameResult(1, "example-code")
+            // Import stores dynamically to avoid SSR issues
+            const { mainNodesStore, itemNodesStore, playerStore, battleCountStore, gameStateStore, eventsStore, currentEventIndexStore } = await import("../store/game");
+
+            const nodes = mainNodesStore.get();
+            const items = itemNodesStore.get();
+            const stats = playerStore.get();
+            const cycle = battleCountStore.get();
+
+            // Progress data
+            const progress = {
+                battleCount: battleCountStore.get(),
+                currentEventIndex: currentEventIndexStore.get(),
+                gameState: gameStateStore.get(),
+                events: eventsStore.get(),
+            };
+
+            // Map current GameState to DB Status
+            // If we are clicking this button, it's a Manual Save.
+            // So we force "SAVED" usually. 
+            // BUT user said "status is simple: SAVED, GAME_OVER, COMPLETED".
+            // Since this is "Save & Exit", it acts as a suspend. So "SAVED".
+            const status = "SAVED";
+
+            await recordGameResult(cycle, nodes, items, stats, status, progress);
             alert("Result saved!")
         } catch (error) {
             console.error(error)
