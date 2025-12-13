@@ -1,20 +1,26 @@
-import { Context } from "hono";
+'use server';
+
+import { auth } from "@/src/auth";
 import { db } from "@/src/db";
 import { gameResults } from "@/src/db/schema";
-import { eq, desc } from "drizzle-orm";
 
-export const getUserGameResults = async (c: Context) => {
-    // Assuming userId is passed as query param for now
-    const userId = c.req.query("userId");
+export const getLatestSave = async () => {
+    const session = await auth();
+    const userId = session?.user?.id;
 
-    if (!userId) {
-        return c.json({ error: "UserId is required" }, 400);
+    if (!userId) return null;
+
+    const latest = await db.query.gameResults.findFirst({
+        where: (results, { eq }) => eq(results.userId, userId),
+        orderBy: (results, { desc }) => [desc(results.createdAt)],
+    });
+
+    // Only load if status is 'SAVED'.
+    // 'GAME_OVER' and 'COMPLETED' mean the session ended, so we start fresh.
+    if (latest && latest.status === 'SAVED') {
+        return latest;
     }
 
-    const results = await db.select()
-        .from(gameResults)
-        .where(eq(gameResults.userId, userId))
-
-    return c.json(results);
+    return null;
 };
 

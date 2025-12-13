@@ -6,6 +6,7 @@ import {
   primaryKey,
   integer,
   serial,
+  json,
 } from "drizzle-orm/pg-core"
 import type { AdapterAccountType } from "next-auth/adapters"
 
@@ -92,6 +93,9 @@ export const gameResults = pgTable("game_results", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   cycle: integer("cycle").notNull(),
-  code: text("code").notNull(),
+  code: json("code").notNull(),
+  status: text("status").notNull().default("SAVED"), // SAVED, COMPLETED, GAME_OVER
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  itemsSnapshot: json("items_snapshot"),
+  statsSnapshot: json("stats_snapshot"),
 })
