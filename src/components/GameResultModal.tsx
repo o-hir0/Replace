@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { resetGameState } from '../store/game';
 
 type GameResultModalProps = {
   result: 'clear' | 'over';
@@ -11,9 +12,10 @@ export default function GameResultModal({ result, onClose }: GameResultModalProp
   const router = useRouter();
 
   const handleReturnToMyPage = () => {
+    resetGameState();
     onClose();
     // 次回の冒険を新規ゲームとして開始するため、クエリパラメータをクリア
-    router.push('/mypage');
+    router.replace('/mypage');
   };
 
   const isClear = result === 'clear';

@@ -13,7 +13,7 @@ export const recordGameResult = async (
     stats: any,   // Entity
     status: "SAVED" | "COMPLETED" | "GAME_OVER" = "SAVED",
     progress?: any, // New: { battleCount, currentEventIndex, gameState, events }
-    playLog?: any // New: GamePlayStats
+    options?: { forceNew?: boolean; playLog?: any }
 ) => {
     const session = await auth();
     const userId = session?.user?.id;
@@ -24,10 +24,10 @@ export const recordGameResult = async (
     // Wrap stats and progress into a single object for statsSnapshot
     const statsSnapshot = {
         player: stats,
-        progress: progress || null
+        progress: progress || null,
     };
 
-    if (status === 'SAVED') {
+    if (status === 'SAVED' && !options?.forceNew) {
         const existingSave = await db.query.gameResults.findFirst({
             where: (results, { eq, and }) => and(
                 eq(results.userId, userId),
@@ -44,7 +44,7 @@ export const recordGameResult = async (
                     code: nodes,
                     itemsSnapshot: items,
                     statsSnapshot: statsSnapshot,
-                    playLog: playLog || null,
+                    playLog: options?.playLog || null,
                     createdAt: new Date(), // Update timestamp to show it's recent
                 })
                 .where(eq(gameResults.id, existingSave.id))
@@ -55,14 +55,43 @@ export const recordGameResult = async (
         }
     }
 
-    // Insert new record (for first save or history)
+    // For GAME_OVER / COMPLETED, promote existing SAVED to final state if present
+    if (status !== 'SAVED') {
+        const existingSave = await db.query.gameResults.findFirst({
+            where: (results, { eq, and }) => and(
+                eq(results.userId, userId),
+                eq(results.status, 'SAVED')
+            ),
+            orderBy: (results, { desc }) => [desc(results.createdAt)],
+        });
+
+        if (existingSave) {
+            const result = await db.update(gameResults)
+                .set({
+                    cycle,
+                    code: nodes,
+                    itemsSnapshot: items,
+                    statsSnapshot: statsSnapshot,
+                    status: status,
+                    playLog: options?.playLog || null,
+                    createdAt: new Date(),
+                })
+                .where(eq(gameResults.id, existingSave.id))
+                .returning();
+
+            revalidatePath('/mypage');
+            return { success: true, result: result[0] };
+        }
+    }
+
+    // Insert new record (first save or when no convertible SAVED exists)
     const result = await db.insert(gameResults).values({
         userId: userId,
         cycle,
         code: nodes,
         itemsSnapshot: items,
         statsSnapshot: statsSnapshot,
-        playLog: playLog || null,
+        playLog: options?.playLog || null,
         status: status,
     }).returning();
 

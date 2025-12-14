@@ -11,7 +11,7 @@ import Shop from './Shop';
 import ItemRewardModal from './ItemRewardModal';
 import GameResultModal from './GameResultModal';
 import { GameButton } from './GameButton';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getLatestSave } from '../server/controllers/getResult';
 import { useSearchParams } from 'next/navigation';
 
@@ -85,85 +85,99 @@ export default function Game() {
     const [isRunning, setIsRunning] = useState(false);
     const [showMapModal, setShowMapModal] = useState(false);
     const searchParams = useSearchParams();
+    const hasInitialized = useRef(false);
 
     // Load initial state
     // Load initial state
     useEffect(() => {
+        if (hasInitialized.current) return;
+        hasInitialized.current = true;
+
         const loadState = async () => {
-            // 新規ゲームの場合はリセット
-            const isNewGame = searchParams.get('newGame') === 'true';
-            if (isNewGame) {
-                resetGameState();
-                return;
-            }
+            try {
+                // 新規ゲームの場合はリセット
+                const isNewGame = searchParams.get('newGame') === 'true';
+                if (isNewGame) {
+                    gameResultStore.set(null);
+                    resetGameState();
+                    return;
+                }
 
-            const result = await getLatestSave();
-            if (result) {
-                // Restore state from snapshot
-                if (result.statsSnapshot) {
-                    const snap = result.statsSnapshot;
-                    // Check if it's the new structure { player, progress } or legacy Entity
-                    if (isStructuredStatsSnapshot(snap)) {
-                        playerStore.set(snap.player);
-                        const progress = snap.progress;
-                        if (progress) {
-                            import('../store/game').then(mod => {
-                                if (progress.battleCount !== undefined) mod.battleCountStore.set(progress.battleCount);
-                                if (progress.currentEventIndex !== undefined) mod.currentEventIndexStore.set(progress.currentEventIndex);
-                                if (progress.gameState) mod.gameStateStore.set(progress.gameState);
-                                if (progress.events) mod.eventsStore.set(progress.events);
-                            });
-                        }
-                    } else if (isLegacyStatsSnapshot(snap)) {
-                        // Legacy: it's just the entity
-                        playerStore.set(snap);
-                        if (snap.progress) {
+                const result = await getLatestSave();
+                if (result && result.status === 'SAVED') {
+                    gameResultStore.set(null);
+                    // Restore state from snapshot
+                    if (result.statsSnapshot) {
+                        const snap = result.statsSnapshot as any;
+                        // Check if it's the new structure { player, progress } or legacy Entity
+                        if (isStructuredStatsSnapshot(snap)) {
+                            playerStore.set(snap.player);
                             const progress = snap.progress;
+                            if (progress) {
+                                import('../store/game').then(mod => {
+                                    if (progress.battleCount !== undefined) mod.battleCountStore.set(progress.battleCount);
+                                    if (progress.currentEventIndex !== undefined) mod.currentEventIndexStore.set(progress.currentEventIndex);
+                                    if (progress.gameState) mod.gameStateStore.set(progress.gameState);
+                                    if (progress.events) mod.eventsStore.set(progress.events);
+                                });
+                            }
+                        } else if (isLegacyStatsSnapshot(snap)) {
+                            // Legacy: it's just the entity
+                            playerStore.set(snap);
+                            if (snap.progress) {
+                                const progress = snap.progress;
+                                import('../store/game').then(mod => {
+                                    if (progress.battleCount !== undefined) mod.battleCountStore.set(progress.battleCount);
+                                    if (progress.currentEventIndex !== undefined) mod.currentEventIndexStore.set(progress.currentEventIndex);
+                                    if (progress.gameState) mod.gameStateStore.set(progress.gameState);
+                                    if (progress.events) mod.eventsStore.set(progress.events);
+                                });
+                            }
+                        }
+
+                        // Restore Play Log Stats if available in snapshot
+                        if (snap.playLog) {
                             import('../store/game').then(mod => {
-                                if (progress.battleCount !== undefined) mod.battleCountStore.set(progress.battleCount);
-                                if (progress.currentEventIndex !== undefined) mod.currentEventIndexStore.set(progress.currentEventIndex);
-                                if (progress.gameState) mod.gameStateStore.set(progress.gameState);
-                                if (progress.events) mod.eventsStore.set(progress.events);
+                                mod.gamePlayStatsStore.set(snap.playLog as any);
                             });
                         }
                     }
-                }
-                if (isNodeArray(result.itemsSnapshot)) {
-                    itemNodesStore.set(result.itemsSnapshot);
-                }
-                if (result.code) {
-                    let loadedNodes: unknown = result.code;
-                    // Handle potential string vs object (though schema is json now)
-                    if (typeof loadedNodes === 'string') {
-                        try {
-                            loadedNodes = JSON.parse(loadedNodes);
-                        } catch (e) {
-                            loadedNodes = null;
+                    if (isNodeArray(result.itemsSnapshot)) {
+                        itemNodesStore.set(result.itemsSnapshot);
+                    }
+                    if (result.code) {
+                        let loadedNodes: unknown = result.code;
+                        // Handle potential string vs object (though schema is json now)
+                        if (typeof loadedNodes === 'string') {
+                            try {
+                                loadedNodes = JSON.parse(loadedNodes);
+                            } catch (e) {
+                                loadedNodes = null;
+                            }
+                        }
+                        if (isNodeArray(loadedNodes)) {
+                            mainNodesStore.set(loadedNodes);
                         }
                     }
-                    if (isNodeArray(loadedNodes)) {
-                        mainNodesStore.set(loadedNodes);
+                    const hasProgress =
+                        (result.statsSnapshot && isStructuredStatsSnapshot(result.statsSnapshot) && !!(result.statsSnapshot as any).progress) ||
+                        (result.statsSnapshot && isLegacyStatsSnapshot(result.statsSnapshot) && !!(result.statsSnapshot as any).progress);
+                    if (result.cycle && !hasProgress) {
+                        // Fallback using cycle if progress not saved (legacy)
+                        import('../store/game').then(mod => {
+                            mod.battleCountStore.set(result.cycle - 1); // Cycle was battleCount + 1 approximation
+                        });
                     }
+                } else {
+                    // ゲームオーバー/クリア済み、またはセーブなし -> 新規開始
+                    gameResultStore.set(null);
+                    resetGameState();
                 }
-
-                // Restore Play Log Stats if available
-                if (result.playLog) {
-                    import('../store/game').then(mod => {
-                        // Ensure we merge or set. Usually set is fine as we are loading a save.
-                        mod.gamePlayStatsStore.set(result.playLog as any);
-                    });
-                }
-                const hasProgress =
-                    (result.statsSnapshot && isStructuredStatsSnapshot(result.statsSnapshot) && !!result.statsSnapshot.progress) ||
-                    (result.statsSnapshot && isLegacyStatsSnapshot(result.statsSnapshot) && !!result.statsSnapshot.progress);
-                if (result.cycle && !hasProgress) {
-                    // Fallback using cycle if progress not saved (legacy)
-                    import('../store/game').then(mod => {
-                        mod.battleCountStore.set(result.cycle - 1); // Cycle was battleCount + 1 approximation
-                    });
-                }
+            } catch (error) {
+                console.error('Failed to load saved data, starting new run', error);
+                gameResultStore.set(null);
+                resetGameState();
             }
-            // If result is null, we stay with default initial state (New Game)
         };
         loadState();
     }, [searchParams]);
