@@ -2,9 +2,11 @@
 
 import { recordGameResult } from "@/src/server/controllers/postResult"
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 
 export function GameButton() {
     const [loading, setLoading] = useState(false)
+    const router = useRouter()
 
     const handleClick = async () => {
         setLoading(true)
@@ -33,7 +35,7 @@ export function GameButton() {
             const status = "SAVED";
 
             await recordGameResult(cycle, nodes, items, stats, status, progress);
-            alert("Result saved!")
+            router.push("/mypage")
         } catch (error) {
             console.error(error)
             alert("Failed to save result")

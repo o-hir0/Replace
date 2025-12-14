@@ -1,4 +1,4 @@
-import { playerStore, enemyStore, addLog, generateRewardItems, gameResultStore, gameStateStore } from '../store/game';
+import { playerStore, enemyStore, addLog, generateRewardItems, gameResultStore, gameStateStore, itemNodesStore, battleCountStore, currentEventIndexStore, eventsStore, resetGameState } from '../store/game';
 import type { NodeItem } from '../store/game';
 import {
   findItemDefinitionByLabel,
@@ -71,6 +71,23 @@ export const executeGameLoop = async (nodes: NodeItem[]) => {
     },
   };
 
+  const persistResult = async (status: 'GAME_OVER' | 'COMPLETED') => {
+    try {
+      const { recordGameResult } = await import('../server/controllers/postResult');
+      const items = itemNodesStore.get();
+      const stats = playerStore.get();
+      const progress = {
+        battleCount: battleCountStore.get(),
+        currentEventIndex: currentEventIndexStore.get(),
+        gameState: gameStateStore.get(),
+        events: eventsStore.get(),
+      };
+      await recordGameResult(battleCountStore.get(), nodes, items, stats, status, progress);
+    } catch (e) {
+      console.error('Failed to save result status', e);
+    }
+  };
+
   const runEnemyTurn = async () => {
     const enemy = enemyStore.get();
     const isBoss = gameStateStore.get() === 'BOSS';
@@ -92,6 +109,7 @@ export const executeGameLoop = async (nodes: NodeItem[]) => {
         addLog("HPが0になった...ゲームオーバー");
         await sleep(1000);
         gameResultStore.set('over');
+        await persistResult('GAME_OVER');
         return;
       }
     } else {
@@ -103,6 +121,7 @@ export const executeGameLoop = async (nodes: NodeItem[]) => {
         addLog("ボスを倒した！ゲームクリア！");
         await sleep(1000);
         gameResultStore.set('clear');
+        await persistResult('COMPLETED');
         return;
       }
 

@@ -15,6 +15,7 @@ export default async function MyPage() {
     const results = await db.query.gameResults.findMany({
         where: eq(gameResults.userId, session.user.id),
         orderBy: (results, { desc }) => [desc(results.createdAt)],
+        limit: 3,
     })
 
     return (
@@ -24,7 +25,7 @@ export default async function MyPage() {
                     <h1 className="text-2xl font-bold">My Page</h1>
                     <div className="flex gap-4">
                         <Link
-                            href="/game/?newGame=true"
+                            href="/game"
                             className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-500 shadow-lg"
                         >
                             冒険に出る
@@ -105,6 +106,20 @@ export default async function MyPage() {
                                             <div className="flex justify-between items-center border-b border-gray-800 pb-2">
                                                 <span className="text-yellow-400 font-bold">Cycle: {result.cycle}</span>
                                                 <span className="text-gray-500 text-sm">{new Date(result.createdAt).toLocaleString()}</span>
+                                            </div>
+                                            <div className="text-sm text-gray-400 flex gap-2 items-center">
+                                                <span className="font-semibold text-gray-200">Status:</span>
+                                                <span
+                                                    className={
+                                                        result.status === 'COMPLETED'
+                                                            ? 'text-green-400'
+                                                            : result.status === 'GAME_OVER'
+                                                                ? 'text-red-400'
+                                                                : 'text-yellow-300'
+                                                    }
+                                                >
+                                                    {result.status}
+                                                </span>
                                             </div>
 
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
