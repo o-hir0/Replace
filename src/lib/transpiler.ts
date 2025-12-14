@@ -1,4 +1,4 @@
-import { playerStore, enemyStore, addLog, generateRewardItems, gameResultStore, gameStateStore, itemNodesStore, battleCountStore, currentEventIndexStore, eventsStore, resetGameState } from '../store/game';
+import { playerStore, enemyStore, addLog, generateRewardItems, gameResultStore, gameStateStore, itemNodesStore, battleCountStore, currentEventIndexStore, eventsStore, resetGameState, mainNodesStore } from '../store/game';
 import type { NodeItem } from '../store/game';
 import {
   findItemDefinitionByLabel,
@@ -83,7 +83,9 @@ export const executeGameLoop = async (nodes: NodeItem[]) => {
         gameState: gameStateStore.get(),
         events: eventsStore.get(),
       };
-      await recordGameResult(battleCountStore.get(), nodes, items, stats, status, progress);
+
+      const playLog = gamePlayStatsStore.get();
+      await recordGameResult(battleCountStore.get(), nodes, items, stats, status, progress, { playLog });
     } catch (e) {
       console.error('Failed to save result status', e);
     }
