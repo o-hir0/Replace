@@ -39,3 +39,24 @@ body {
 .animate-bounce-custom {
   animation: bounce-custom 3s infinite;
 }
+
+@keyframes marquee-reset {
+  0% {
+    transform: translateX(0);
+  }
+  80% {
+    transform: translateX(calc(-1 * var(--scroll-distance, 0px)));
+    animation-timing-function: steps(1, end);
+  }
+  81% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+.marquee-reset {
+  animation: marquee-reset var(--scroll-duration, 6s) linear infinite;
+  will-change: transform;
+}

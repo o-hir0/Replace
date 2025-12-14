@@ -1,12 +1,13 @@
 'use client';
 
 import { useStore } from '@nanostores/react';
-import { playerStore, enemyStore, gameStateStore } from '../store/game';
+import { playerStore, enemyStore, gameStateStore, enemySpriteStore } from '../store/game';
 
 export default function Stats() {
   const player = useStore(playerStore);
   const enemy = useStore(enemyStore);
   const gameState = useStore(gameStateStore);
+  const enemySprite = useStore(enemySpriteStore);
   const isBoss = gameState === 'BOSS';
 
   return (
@@ -18,6 +19,7 @@ export default function Stats() {
           <div>ATK: {player.atk}</div>
           <div>HP: {player.hp}</div>
           <div>BP: {player.bp}</div>
+          <div>ATK-TYPE: {player.atkType ?? 'none'}</div>
         </div>
       </div>
 
@@ -35,7 +37,7 @@ export default function Stats() {
           
           {/* Enemy Visual */}
           <div className="animate-bounce-custom filter drop-shadow-lg translate-y-4">
-            <img src="/asset/enemy/enemy-01.svg" alt="enemy" className="w-64 h-64" />
+            <img src={enemySprite} alt="enemy" className="w-64 h-64" />
           </div>
         </div>
       </div>

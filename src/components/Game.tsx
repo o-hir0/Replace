@@ -1,7 +1,7 @@
 'use client';
 
 import { useStore } from '@nanostores/react';
-import { mainNodesStore, logStore, gameStateStore, selectedShopItemIndexStore, shopFocusAreaStore, playerStore, itemNodesStore, gameResultStore, resetGameState } from '../store/game';
+import { mainNodesStore, logStore, gameStateStore, selectedShopItemIndexStore, shopFocusAreaStore, playerStore, itemNodesStore, gameResultStore, resetGameState, type Entity, type NodeItem, type GameState, type EventType } from '../store/game';
 import { executeGameLoop } from '../lib/transpiler';
 import Stats from './Stats';
 import Editor from './Editor';
@@ -14,6 +14,68 @@ import { GameButton } from './GameButton';
 import { useEffect, useState } from 'react';
 import { getLatestSave } from '../server/controllers/getResult';
 import { useSearchParams } from 'next/navigation';
+
+type ProgressSnapshot = {
+    battleCount?: number;
+    currentEventIndex?: number;
+    gameState?: GameState;
+    events?: EventType[];
+};
+
+type StructuredStatsSnapshot = {
+    player: Entity;
+    progress?: ProgressSnapshot;
+};
+
+type LegacyStatsSnapshot = Entity & { progress?: ProgressSnapshot };
+
+const isProgressSnapshot = (value: unknown): value is ProgressSnapshot => {
+    if (!value || typeof value !== 'object') return false;
+    const progress = value as ProgressSnapshot;
+    const hasNumbers =
+        (progress.battleCount === undefined || typeof progress.battleCount === 'number') &&
+        (progress.currentEventIndex === undefined || typeof progress.currentEventIndex === 'number');
+    const hasGameState = progress.gameState === undefined || typeof progress.gameState === 'string';
+    const hasEvents =
+        progress.events === undefined ||
+        (Array.isArray(progress.events) && progress.events.every((evt) => typeof evt === 'string'));
+    return hasNumbers && hasGameState && hasEvents;
+};
+
+const hasEntityFields = (value: unknown): value is Entity => {
+    if (!value || typeof value !== 'object') return false;
+    const v = value as Entity;
+    return (
+        typeof v.hp === 'number' &&
+        typeof v.maxHp === 'number' &&
+        typeof v.atk === 'number' &&
+        typeof v.bp === 'number' &&
+        typeof v.maxBp === 'number'
+    );
+};
+
+const isStructuredStatsSnapshot = (value: unknown): value is StructuredStatsSnapshot => {
+    if (!value || typeof value !== 'object') return false;
+    const snap = value as StructuredStatsSnapshot;
+    return hasEntityFields(snap.player) && (snap.progress === undefined || isProgressSnapshot(snap.progress));
+};
+
+const isLegacyStatsSnapshot = (value: unknown): value is LegacyStatsSnapshot => {
+    if (!hasEntityFields(value)) return false;
+    const snap = value as LegacyStatsSnapshot;
+    return snap.progress === undefined || isProgressSnapshot(snap.progress);
+};
+
+const isNodeArray = (value: unknown): value is NodeItem[] =>
+    Array.isArray(value) &&
+    value.every(
+        (node) =>
+            node &&
+            typeof node === 'object' &&
+            'id' in node &&
+            'label' in node &&
+            'type' in node
+    );
 
 export default function Game() {
     const logs = useStore(logStore);
@@ -39,41 +101,54 @@ export default function Game() {
             if (result) {
                 // Restore state from snapshot
                 if (result.statsSnapshot) {
-                    const snap: any = result.statsSnapshot;
+                    const snap = result.statsSnapshot;
                     // Check if it's the new structure { player, progress } or legacy Entity
-                    if (snap.player) {
-                        playerStore.set(snap.player as any);
-                    } else {
+                    if (isStructuredStatsSnapshot(snap)) {
+                        playerStore.set(snap.player);
+                        const progress = snap.progress;
+                        if (progress) {
+                            import('../store/game').then(mod => {
+                                if (progress.battleCount !== undefined) mod.battleCountStore.set(progress.battleCount);
+                                if (progress.currentEventIndex !== undefined) mod.currentEventIndexStore.set(progress.currentEventIndex);
+                                if (progress.gameState) mod.gameStateStore.set(progress.gameState);
+                                if (progress.events) mod.eventsStore.set(progress.events);
+                            });
+                        }
+                    } else if (isLegacyStatsSnapshot(snap)) {
                         // Legacy: it's just the entity
-                        playerStore.set(snap as any);
-                    }
-
-                    // Restore progress if available
-                    if (snap.progress) {
-                        import('../store/game').then(mod => {
-                            if (snap.progress.battleCount !== undefined) mod.battleCountStore.set(snap.progress.battleCount);
-                            if (snap.progress.currentEventIndex !== undefined) mod.currentEventIndexStore.set(snap.progress.currentEventIndex);
-                            if (snap.progress.gameState) mod.gameStateStore.set(snap.progress.gameState);
-                            if (snap.progress.events) mod.eventsStore.set(snap.progress.events);
-                        });
+                        playerStore.set(snap);
+                        if (snap.progress) {
+                            const progress = snap.progress;
+                            import('../store/game').then(mod => {
+                                if (progress.battleCount !== undefined) mod.battleCountStore.set(progress.battleCount);
+                                if (progress.currentEventIndex !== undefined) mod.currentEventIndexStore.set(progress.currentEventIndex);
+                                if (progress.gameState) mod.gameStateStore.set(progress.gameState);
+                                if (progress.events) mod.eventsStore.set(progress.events);
+                            });
+                        }
                     }
                 }
-                if (result.itemsSnapshot) {
-                    itemNodesStore.set(result.itemsSnapshot as any[]);
+                if (isNodeArray(result.itemsSnapshot)) {
+                    itemNodesStore.set(result.itemsSnapshot);
                 }
                 if (result.code) {
-                    let loadedNodes = result.code;
+                    let loadedNodes: unknown = result.code;
                     // Handle potential string vs object (though schema is json now)
                     if (typeof loadedNodes === 'string') {
                         try {
                             loadedNodes = JSON.parse(loadedNodes);
-                        } catch (e) { }
+                        } catch (e) {
+                            loadedNodes = null;
+                        }
                     }
-                    if (Array.isArray(loadedNodes)) {
+                    if (isNodeArray(loadedNodes)) {
                         mainNodesStore.set(loadedNodes);
                     }
                 }
-                if (result.cycle && (!result.statsSnapshot || !(result.statsSnapshot as any).progress)) {
+                const hasProgress =
+                    (result.statsSnapshot && isStructuredStatsSnapshot(result.statsSnapshot) && !!result.statsSnapshot.progress) ||
+                    (result.statsSnapshot && isLegacyStatsSnapshot(result.statsSnapshot) && !!result.statsSnapshot.progress);
+                if (result.cycle && !hasProgress) {
                     // Fallback using cycle if progress not saved (legacy)
                     import('../store/game').then(mod => {
                         mod.battleCountStore.set(result.cycle - 1); // Cycle was battleCount + 1 approximation

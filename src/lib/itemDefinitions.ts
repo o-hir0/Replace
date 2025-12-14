@@ -249,7 +249,7 @@ export const itemDefinitions: Record<string, ItemDefinition> = {
     category: '攻撃',
     multiSelect: true,
     parameters: [{ name: 'type', type: 'element', default: 'water' }],
-    generateCode: (params) => `atkType = '${params?.type ?? 'water'}';`,
+    generateCode: (params) => `setAtkType('${params?.type ?? 'water'}');`,
     executeAction: async (context, params) => {
       const type = (params?.type as ElementType) ?? 'water';
       context.updatePlayer({ atkType: type });
@@ -276,23 +276,11 @@ export const findItemDefinitionByLabel = (label: string): ItemDefinition | undef
 
     // パラメータ付きの場合（multiSelect: true）
     if (def.multiSelect) {
-      // パターンマッチング: X → \d+, T → (water|fire|grass)
-      // まず、正規表現特殊文字をエスケープしてから、プレースホルダーを置換
-      // XとTは、それぞれ単独で現れる場合（両端または記号に挟まれている場合）のみ置換
-      let pattern = def.label;
-
-      // 正規表現特殊文字をエスケープ（TとXも一旦エスケープ）
-      pattern = pattern.replace(/[+()=\s]/g, '\\$&');
-
-      // 単独のTを置換（前後が単語境界または記号）
-      // ラベルの終端にあるT、または=の直後のTのみを置換
-      pattern = pattern.replace(/=T$/g, '=(water|fire|grass)');  // 末尾のT
-      pattern = pattern.replace(/=T\\/g, '=(water|fire|grass)\\');  // エスケープされた文字の前のT
-
-      // 単独のXを置換（同様に）
-      pattern = pattern.replace(/=X$/g, '=\\d+');  // 末尾のX
-      pattern = pattern.replace(/=X\\/g, '=\\d+\\');  // エスケープされた文字の前のX
-
+      // プレースホルダ T/X を具体値に置換した正規表現でマッチング
+      // 正規表現特殊文字をエスケープ
+      let pattern = def.label.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+      pattern = pattern.replace(/=T\b/g, '=(water|fire|grass)');
+      pattern = pattern.replace(/=X\b/g, '=\\d+');
       const regex = new RegExp(`^${pattern}$`);
       console.log(`  -> testing pattern "${pattern}" against label "${label}":`, regex.test(label));
       if (regex.test(label)) {

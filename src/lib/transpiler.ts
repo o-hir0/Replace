@@ -44,7 +44,6 @@ const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(r
  * ゲームコードを実行する汎用実行エンジン
  */
 export const executeGameLoop = async (nodes: NodeItem[]) => {
-  const code = transpile(nodes);
   addLog(`コード実行中...`);
 
   // ゲームコンテキストの構築
@@ -71,6 +70,76 @@ export const executeGameLoop = async (nodes: NodeItem[]) => {
       }
     },
   };
+
+  const runEnemyTurn = async () => {
+    const enemy = enemyStore.get();
+    const isBoss = gameStateStore.get() === 'BOSS';
+
+    if (enemy.hp > 0) {
+      addLog(`敵のターン！BP: ${enemy.bp}`);
+      await sleep(500);
+
+      const damage = enemy.atk * enemy.bp;
+      addLog(`敵が${enemy.bp}回攻撃！合計ダメージ: ${damage}`);
+
+      const currentPlayer = playerStore.get();
+      const newHp = Math.max(0, currentPlayer.hp - damage);
+      playerStore.setKey('hp', newHp);
+
+      // HPが0になったらゲームオーバー
+      if (newHp <= 0) {
+        await sleep(500);
+        addLog("HPが0になった...ゲームオーバー");
+        await sleep(1000);
+        gameResultStore.set('over');
+        return;
+      }
+    } else {
+      addLog("敵を倒した！");
+      await sleep(500);
+
+      // ボスを倒したらゲームクリア
+      if (isBoss) {
+        addLog("ボスを倒した！ゲームクリア！");
+        await sleep(1000);
+        gameResultStore.set('clear');
+        return;
+      }
+
+      // 通常の敵を倒した場合はアイテム獲得モーダルを表示
+      generateRewardItems();
+    }
+
+    // ターン終了処理
+    await sleep(1000);
+    addLog("ターン終了。BPをリセット。");
+    playerStore.setKey('bp', playerStore.get().maxBp);
+    enemyStore.setKey('bp', enemyStore.get().maxBp);
+  };
+
+  // 事前バリデーション: enemyType未設定で条件分岐を使う、またはend不足
+  const usesEnemyTypeCondition = nodes.some((n) => /^if enemyType=/.test(n.label));
+  const hasEnemyTypeSearch = nodes.some((n) => n.label === 'enemyType=searchEnemyTypes()');
+  if (usesEnemyTypeCondition && !hasEnemyTypeSearch) {
+    addLog('エラー: enemyTypeが未定義です。先に enemyType=searchEnemyTypes() を実行してください。行動をスキップします。');
+    await runEnemyTurn();
+    return;
+  }
+
+  let controlDepth = 0;
+  for (const node of nodes) {
+    if (node.label.startsWith('if ')) controlDepth += 1;
+    if (node.label === 'n.times do') controlDepth += 1;
+    if (node.label === 'end') controlDepth -= 1;
+    if (controlDepth < 0) break;
+  }
+  if (controlDepth !== 0) {
+    addLog('エラー: if / n.times の対応が不足しています。コードを確認してください。行動をスキップします。');
+    await runEnemyTurn();
+    return;
+  }
+
+  const code = transpile(nodes);
 
   // 実行コンテキスト用の関数群を動的に生成
   type ContextFunction = (paramValue?: number | string) => Promise<void> | string | undefined;
@@ -149,48 +218,5 @@ export const executeGameLoop = async (nodes: NodeItem[]) => {
     console.error('Transpiler execution error:', e);
   }
 
-  // 敵のターン処理
-  const enemy = enemyStore.get();
-  const isBoss = gameStateStore.get() === 'BOSS';
-
-  if (enemy.hp > 0) {
-    addLog(`敵のターン！BP: ${enemy.bp}`);
-    await sleep(500);
-
-    const damage = enemy.atk * enemy.bp;
-    addLog(`敵が${enemy.bp}回攻撃！合計ダメージ: ${damage}`);
-
-    const currentPlayer = playerStore.get();
-    const newHp = Math.max(0, currentPlayer.hp - damage);
-    playerStore.setKey('hp', newHp);
-
-    // HPが0になったらゲームオーバー
-    if (newHp <= 0) {
-      await sleep(500);
-      addLog("HPが0になった...ゲームオーバー");
-      await sleep(1000);
-      gameResultStore.set('over');
-      return;
-    }
-  } else {
-    addLog("敵を倒した！");
-    await sleep(500);
-
-    // ボスを倒したらゲームクリア
-    if (isBoss) {
-      addLog("ボスを倒した！ゲームクリア！");
-      await sleep(1000);
-      gameResultStore.set('clear');
-      return;
-    }
-
-    // 通常の敵を倒した場合はアイテム獲得モーダルを表示
-    generateRewardItems();
-  }
-
-  // ターン終了処理
-  await sleep(1000);
-  addLog("ターン終了。BPをリセット。");
-  playerStore.setKey('bp', playerStore.get().maxBp);
-  enemyStore.setKey('bp', enemyStore.get().maxBp);
+  await runEnemyTurn();
 };

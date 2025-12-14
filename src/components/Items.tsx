@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useStore } from '@nanostores/react';
 import { itemNodesStore, mainNodesStore, gameStateStore, selectedShopItemIndexStore, cycleCountStore, handleShopSwap, setShopFocusArea } from '../store/game';
 import { getItemDescription } from '../lib/itemDefinitions';
+import { ScrollLabel } from './ScrollLabel';
 
 export default function Items() {
   const items = useStore(itemNodesStore);
@@ -71,7 +72,7 @@ export default function Items() {
                         className="w-full h-full"
                       />
                     </div>
-                    <span className="font-mono font-bold text-gray-800 block text-center mt-2">{item.label}</span>
+                    <ScrollLabel text={item.label} containerClassName="mt-2" />
                   </>
                 ) : (
                   <div className="w-full h-full overflow-y-auto text-left p-2">

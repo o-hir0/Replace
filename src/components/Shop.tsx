@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useStore } from '@nanostores/react';
 import { shopItemsStore, gameStateStore, currentEventIndexStore, selectedShopItemIndexStore, shopFocusAreaStore, setShopFocusArea, shopLogStore, advanceToNextEvent, startBattleEncounter, startBossEncounter, addShopLog } from '../store/game';
 import { getItemDescription } from '../lib/itemDefinitions';
+import { ScrollLabel } from './ScrollLabel';
 
 export default function Shop() {
     const shopItems = useStore(shopItemsStore);
@@ -91,7 +92,7 @@ export default function Shop() {
                                             <div className="w-10 h-10 mb-1 mx-auto">
                                                 <img src={`/asset/ui/${item.type}.svg`} alt={item.type} className="w-full h-full" />
                                             </div>
-                                            <span className="font-mono font-bold text-gray-800 block text-center">{item.label}</span>
+                                            <ScrollLabel text={item.label} />
                                         </>
                                     ) : (
                                         <div className="w-full h-full overflow-y-auto text-left p-2">
