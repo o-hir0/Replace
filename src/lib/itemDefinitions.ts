@@ -121,10 +121,17 @@ export const itemDefinitions: Record<string, ItemDefinition> = {
     category: '攻撃',
     generateCode: () => 'await atk();',
     executeAction: async (context) => {
+      const { gamePlayStatsStore } = await import('../store/game');
       // BP消費
       const bpCost = 1;
       const newBp = context.player.bp - bpCost;
       context.updatePlayer({ bp: newBp });
+
+      const stats = gamePlayStatsStore.get();
+      gamePlayStatsStore.set({
+        ...stats,
+        totalBpConsumed: stats.totalBpConsumed + bpCost
+      });
 
       if (newBp < 0) {
         const penalty = Math.abs(newBp);
@@ -144,6 +151,8 @@ export const itemDefinitions: Record<string, ItemDefinition> = {
 
       context.log(`プレイヤーの攻撃！${damage}ダメージ`);
       context.updateEnemy({ hp: Math.max(0, context.enemy.hp - damage) });
+
+      gamePlayStatsStore.setKey('totalDamageDealt', gamePlayStatsStore.get().totalDamageDealt + damage);
 
       await context.sleep(500);
     },
@@ -205,11 +214,16 @@ export const itemDefinitions: Record<string, ItemDefinition> = {
     parameters: [{ name: 'value', type: 'value', default: 1 }],
     generateCode: (params) => `heal(${params?.value ?? 1});`,
     executeAction: async (context, params) => {
+      const { gamePlayStatsStore } = await import('../store/game');
       const value = (params?.value as ValueType) ?? 1;
       const healAmount = value;
       const newHp = Math.min(context.player.maxHp, context.player.hp + healAmount);
       context.updatePlayer({ hp: newHp });
       context.log(`HPが${healAmount}回復！(HP: ${newHp}/${context.player.maxHp})`);
+
+      const stats = gamePlayStatsStore.get();
+      gamePlayStatsStore.setKey('totalHpHealed', stats.totalHpHealed + healAmount);
+
       await context.sleep(200);
     },
   },

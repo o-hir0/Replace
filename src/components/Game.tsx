@@ -108,7 +108,7 @@ export default function Game() {
                     gameResultStore.set(null);
                     // Restore state from snapshot
                     if (result.statsSnapshot) {
-                        const snap = result.statsSnapshot;
+                        const snap = result.statsSnapshot as any;
                         // Check if it's the new structure { player, progress } or legacy Entity
                         if (isStructuredStatsSnapshot(snap)) {
                             playerStore.set(snap.player);
@@ -134,6 +134,13 @@ export default function Game() {
                                 });
                             }
                         }
+
+                        // Restore Play Log Stats if available in snapshot
+                        if (snap.playLog) {
+                            import('../store/game').then(mod => {
+                                mod.gamePlayStatsStore.set(snap.playLog as any);
+                            });
+                        }
                     }
                     if (isNodeArray(result.itemsSnapshot)) {
                         itemNodesStore.set(result.itemsSnapshot);
@@ -153,8 +160,8 @@ export default function Game() {
                         }
                     }
                     const hasProgress =
-                        (result.statsSnapshot && isStructuredStatsSnapshot(result.statsSnapshot) && !!result.statsSnapshot.progress) ||
-                        (result.statsSnapshot && isLegacyStatsSnapshot(result.statsSnapshot) && !!result.statsSnapshot.progress);
+                        (result.statsSnapshot && isStructuredStatsSnapshot(result.statsSnapshot) && !!(result.statsSnapshot as any).progress) ||
+                        (result.statsSnapshot && isLegacyStatsSnapshot(result.statsSnapshot) && !!(result.statsSnapshot as any).progress);
                     if (result.cycle && !hasProgress) {
                         // Fallback using cycle if progress not saved (legacy)
                         import('../store/game').then(mod => {

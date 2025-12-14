@@ -13,7 +13,7 @@ export const recordGameResult = async (
     stats: any,   // Entity
     status: "SAVED" | "COMPLETED" | "GAME_OVER" = "SAVED",
     progress?: any, // New: { battleCount, currentEventIndex, gameState, events }
-    options?: { forceNew?: boolean }
+    options?: { forceNew?: boolean; playLog?: any }
 ) => {
     const session = await auth();
     const userId = session?.user?.id;
@@ -24,7 +24,8 @@ export const recordGameResult = async (
     // Wrap stats and progress into a single object for statsSnapshot
     const statsSnapshot = {
         player: stats,
-        progress: progress || null
+        progress: progress || null,
+        playLog: options?.playLog || null,
     };
 
     if (status === 'SAVED' && !options?.forceNew) {

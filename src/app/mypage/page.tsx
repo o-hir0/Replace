@@ -104,7 +104,28 @@ export default async function MyPage() {
                                             className="rounded-xl bg-gray-950 border border-gray-800 p-4 space-y-4"
                                         >
                                             <div className="flex justify-between items-center border-b border-gray-800 pb-2">
-                                                <span className="text-yellow-400 font-bold">Cycle: {result.cycle}</span>
+                                                <div className="flex items-center gap-4">
+                                                    <span className="text-yellow-400 font-bold">Cycle: {result.cycle}</span>
+                                                    {(() => {
+                                                        const playLog = result.playLog as any || {};
+                                                        const totalHpHealed = playLog.totalHpHealed || 0;
+                                                        const totalDamageDealt = playLog.totalDamageDealt || 0;
+                                                        const executionFailureCount = playLog.executionFailureCount || 0;
+                                                        const totalTurns = playLog.totalTurns || 0;
+                                                        const itemSwapCount = playLog.itemSwapCount || 0;
+                                                        const shopTradeCount = playLog.shopTradeCount || 0;
+                                                        const totalBpConsumed = playLog.totalBpConsumed || 0;
+
+                                                        const score = Math.floor(
+                                                            ((3 * totalHpHealed + totalDamageDealt) / (0.1 * executionFailureCount + 1)) -
+                                                            (totalTurns + itemSwapCount + shopTradeCount + totalBpConsumed / 3)
+                                                        );
+
+                                                        return (
+                                                            <span className="text-purple-400 font-bold">Score: {score}</span>
+                                                        );
+                                                    })()}
+                                                </div>
                                                 <span className="text-gray-500 text-sm">{new Date(result.createdAt).toLocaleString()}</span>
                                             </div>
                                             <div className="text-sm text-gray-400 flex gap-2 items-center">

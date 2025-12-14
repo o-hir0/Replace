@@ -5,6 +5,7 @@ export const resultSchema = z.object({
     code: z.any(), // JSON
     itemsSnapshot: z.any().optional(), // JSON
     statsSnapshot: z.any().optional(), // JSON
+    playLog: z.any().optional(), // JSON: GamePlayStats
     status: z.enum(['SAVED', 'COMPLETED', 'GAME_OVER']).optional().default('SAVED'),
 });
 
