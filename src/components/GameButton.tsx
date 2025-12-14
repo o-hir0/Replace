@@ -10,12 +10,22 @@ export function GameButton() {
         setLoading(true)
         try {
             // Import stores dynamically to avoid SSR issues
-            const { mainNodesStore, itemNodesStore, playerStore, battleCountStore, gameStateStore, eventsStore, currentEventIndexStore } = await import("../store/game");
+            const {
+                mainNodesStore,
+                itemNodesStore,
+                playerStore,
+                battleCountStore,
+                gameStateStore,
+                eventsStore,
+                currentEventIndexStore,
+                gamePlayStatsStore
+            } = await import("../store/game");
 
             const nodes = mainNodesStore.get();
             const items = itemNodesStore.get();
             const stats = playerStore.get();
             const cycle = battleCountStore.get();
+            const playLog = gamePlayStatsStore.get();
 
             // Progress data
             const progress = {
@@ -32,7 +42,7 @@ export function GameButton() {
             // Since this is "Save & Exit", it acts as a suspend. So "SAVED".
             const status = "SAVED";
 
-            await recordGameResult(cycle, nodes, items, stats, status, progress);
+            await recordGameResult(cycle, nodes, items, stats, status, progress, playLog);
             alert("Result saved!")
         } catch (error) {
             console.error(error)

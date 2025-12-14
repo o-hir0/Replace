@@ -45,6 +45,7 @@ const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(r
  */
 export const executeGameLoop = async (nodes: NodeItem[]) => {
   addLog(`コード実行中...`);
+  const { gamePlayStatsStore } = await import('../store/game');
 
   // ゲームコンテキストの構築
   const gameContext: GameContext = {
@@ -75,6 +76,8 @@ export const executeGameLoop = async (nodes: NodeItem[]) => {
     const enemy = enemyStore.get();
     const isBoss = gameStateStore.get() === 'BOSS';
 
+    const { gamePlayStatsStore } = await import('../store/game');
+
     if (enemy.hp > 0) {
       addLog(`敵のターン！BP: ${enemy.bp}`);
       await sleep(500);
@@ -85,6 +88,9 @@ export const executeGameLoop = async (nodes: NodeItem[]) => {
       const currentPlayer = playerStore.get();
       const newHp = Math.max(0, currentPlayer.hp - damage);
       playerStore.setKey('hp', newHp);
+
+      const stats = gamePlayStatsStore.get();
+      gamePlayStatsStore.setKey('totalDamageTaken', stats.totalDamageTaken + damage);
 
       // HPが0になったらゲームオーバー
       if (newHp <= 0) {
@@ -111,6 +117,8 @@ export const executeGameLoop = async (nodes: NodeItem[]) => {
     }
 
     // ターン終了処理
+    gamePlayStatsStore.setKey('totalTurns', gamePlayStatsStore.get().totalTurns + 1);
+
     await sleep(1000);
     addLog("ターン終了。BPをリセット。");
     playerStore.setKey('bp', playerStore.get().maxBp);
@@ -122,6 +130,8 @@ export const executeGameLoop = async (nodes: NodeItem[]) => {
   const hasEnemyTypeSearch = nodes.some((n) => n.label === 'enemyType=searchEnemyTypes()');
   if (usesEnemyTypeCondition && !hasEnemyTypeSearch) {
     addLog('エラー: enemyTypeが未定義です。先に enemyType=searchEnemyTypes() を実行してください。行動をスキップします。');
+    const stats = gamePlayStatsStore.get();
+    gamePlayStatsStore.setKey('executionFailureCount', stats.executionFailureCount + 1);
     await runEnemyTurn();
     return;
   }
@@ -135,6 +145,8 @@ export const executeGameLoop = async (nodes: NodeItem[]) => {
   }
   if (controlDepth !== 0) {
     addLog('エラー: if / n.times の対応が不足しています。コードを確認してください。行動をスキップします。');
+    const stats = gamePlayStatsStore.get();
+    gamePlayStatsStore.setKey('executionFailureCount', stats.executionFailureCount + 1);
     await runEnemyTurn();
     return;
   }

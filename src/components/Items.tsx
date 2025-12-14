@@ -20,9 +20,9 @@ export default function Items() {
 
   // ロック条件：3周目のバトル中のみ（ショップでは編集可能、ボス戦では編集可能）
   const isLocked = cycleCount >= 3 && isBattle;
-  
+
   return (
-    <div 
+    <div
       className="flex flex-col bg-gray-600 p-4 h-full overflow-y-auto relative"
       onMouseEnter={() => { if (isShop) setShopFocusArea('items'); }}
       onMouseLeave={() => { if (isShop) setShopFocusArea(null); }}
@@ -58,6 +58,11 @@ export default function Items() {
                   newItems.splice(index, 1);
                   itemNodesStore.set(newItems);
                   mainNodesStore.set([...mainNodesStore.get(), item]);
+
+                  import('../store/game').then(({ gamePlayStatsStore }) => {
+                    const stats = gamePlayStatsStore.get();
+                    gamePlayStatsStore.setKey('itemSwapCount', stats.itemSwapCount + 1);
+                  });
                 }}
                 disabled={isLocked && !isSwapMode}
                 className={`w-full h-full bg-[#D9D9D9] border-8 border-[#C4AE4B] p-4 rounded-xl shadow-md transition-transform active:scale-95 hover:bg-gray-50 relative

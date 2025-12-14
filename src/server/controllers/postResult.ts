@@ -12,7 +12,8 @@ export const recordGameResult = async (
     items: any[], // NodeItem[]
     stats: any,   // Entity
     status: "SAVED" | "COMPLETED" | "GAME_OVER" = "SAVED",
-    progress?: any // New: { battleCount, currentEventIndex, gameState, events }
+    progress?: any, // New: { battleCount, currentEventIndex, gameState, events }
+    playLog?: any // New: GamePlayStats
 ) => {
     const session = await auth();
     const userId = session?.user?.id;
@@ -43,6 +44,7 @@ export const recordGameResult = async (
                     code: nodes,
                     itemsSnapshot: items,
                     statsSnapshot: statsSnapshot,
+                    playLog: playLog || null,
                     createdAt: new Date(), // Update timestamp to show it's recent
                 })
                 .where(eq(gameResults.id, existingSave.id))
@@ -60,6 +62,7 @@ export const recordGameResult = async (
         code: nodes,
         itemsSnapshot: items,
         statsSnapshot: statsSnapshot,
+        playLog: playLog || null,
         status: status,
     }).returning();
 

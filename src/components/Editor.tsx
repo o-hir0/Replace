@@ -25,7 +25,7 @@ export default function Editor() {
     const newNodes = [...nodes];
     newNodes.splice(index, 1);
     mainNodesStore.set(newNodes);
-    
+
     // Return to items if it's not a variable (variables might be special, but for now just return everything)
     // Actually, prompt says "return to Item column".
     // We should check if it's already in items to avoid duplicates if we want unique items, 
@@ -34,6 +34,11 @@ export default function Editor() {
     // The prompt says "Item column... click to add to main... click minus to return". 
     // This implies moving items back and forth.
     itemNodesStore.set([...itemNodesStore.get(), nodeToRemove]);
+
+    import('../store/game').then(({ gamePlayStatsStore }) => {
+      const stats = gamePlayStatsStore.get();
+      gamePlayStatsStore.setKey('itemSwapCount', stats.itemSwapCount + 1);
+    });
   };
 
   const moveNode = (index: number, direction: 'up' | 'down') => {
@@ -49,7 +54,7 @@ export default function Editor() {
   };
 
   return (
-    <div 
+    <div
       className="flex flex-col bg-gray-700 p-4 h-full overflow-y-auto relative"
       onMouseEnter={() => { if (gameState === 'SHOP') setShopFocusArea('editor'); }}
       onMouseLeave={() => { if (gameState === 'SHOP') setShopFocusArea(null); }}
@@ -61,17 +66,17 @@ export default function Editor() {
             <div key={`${node.id}-${index}`} className="flex flex-col items-center">
               <div className="relative w-full bg-gray-300 rounded p-2 text-black font-mono flex justify-between items-center group">
                 <span>{node.label}</span>
-                <button 
+                <button
                   onClick={() => removeNode(index)}
                   className="p-1 w-6 h-6 flex items-center justify-center hover:scale-110 transition-transform bg-[#C4AE4B] rounded-full"
                 >
                   <img src="/asset/ui/remove.svg" alt="remove" className="w-full h-full" />
                 </button>
               </div>
-              
+
               {/* Swap Controls (Visualized as arrows between nodes) */}
               {index < nodes.length - 1 && (
-                <button 
+                <button
                   onClick={() => moveNode(index, 'down')}
                   className="my-1 hover:scale-110 transition-transform"
                 >

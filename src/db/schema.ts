@@ -98,4 +98,5 @@ export const gameResults = pgTable("game_results", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   itemsSnapshot: json("items_snapshot"),
   statsSnapshot: json("stats_snapshot"),
+  playLog: json("play_log"),
 })

@@ -145,6 +145,14 @@ export default function Game() {
                         mainNodesStore.set(loadedNodes);
                     }
                 }
+
+                // Restore Play Log Stats if available
+                if (result.playLog) {
+                    import('../store/game').then(mod => {
+                        // Ensure we merge or set. Usually set is fine as we are loading a save.
+                        mod.gamePlayStatsStore.set(result.playLog as any);
+                    });
+                }
                 const hasProgress =
                     (result.statsSnapshot && isStructuredStatsSnapshot(result.statsSnapshot) && !!result.statsSnapshot.progress) ||
                     (result.statsSnapshot && isLegacyStatsSnapshot(result.statsSnapshot) && !!result.statsSnapshot.progress);

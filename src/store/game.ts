@@ -193,21 +193,24 @@ export const handleShopSwap = (inventoryIndex: number) => {
 
   const shopItems = shopItemsStore.get();
   const inventoryItems = itemNodesStore.get();
-  
+
   const newShopItems = [...shopItems];
   const newInventoryItems = [...inventoryItems];
-  
+
   const shopItem = newShopItems[selectedShopIndex];
   const inventoryItem = newInventoryItems[inventoryIndex];
-  
+
   newShopItems[selectedShopIndex] = inventoryItem;
   newInventoryItems[inventoryIndex] = shopItem;
-  
+
   shopItemsStore.set(newShopItems);
   itemNodesStore.set(newInventoryItems);
-  
+
   selectedShopItemIndexStore.set(null);
   addShopLog(`「${inventoryItem.label}」と「${shopItem.label}」を交換したよ！`);
+
+  const stats = gamePlayStatsStore.get();
+  gamePlayStatsStore.setKey('shopTradeCount', stats.shopTradeCount + 1);
 };
 
 /**
@@ -308,6 +311,31 @@ export const addLog = (msg: string) => {
   logStore.set([...logStore.get(), msg]);
 };
 
+// プレイ統計情報
+export type GamePlayStats = {
+  totalDamageDealt: number;
+  totalDamageTaken: number;
+  totalHpHealed: number;
+  totalBpConsumed: number;
+  totalTurns: number;
+  itemSwapCount: number;
+  executionFailureCount: number;
+  shopTradeCount: number;
+};
+
+const initialStats: GamePlayStats = {
+  totalDamageDealt: 0,
+  totalDamageTaken: 0,
+  totalHpHealed: 0,
+  totalBpConsumed: 0,
+  totalTurns: 0,
+  itemSwapCount: 0,
+  executionFailureCount: 0,
+  shopTradeCount: 0,
+};
+
+export const gamePlayStatsStore = map<GamePlayStats>({ ...initialStats });
+
 /**
  * 戦闘勝利時にランダムアイテムを2個獲得
  */
@@ -353,6 +381,9 @@ export const resetGameState = () => {
   traversalDirectionStore.set(1);
   battleCountStore.set(0);
   cycleCountStore.set(1);
+
+  // 統計情報をリセット
+  gamePlayStatsStore.set({ ...initialStats });
 
   // モーダルをクリア
   showItemRewardModalStore.set(false);
