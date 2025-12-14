@@ -23,7 +23,7 @@ export default function Shop() {
         setShopFocusArea(null);
         const nextEvent = advanceToNextEvent();
         if (!nextEvent.event) return;
-        if (nextEvent.wrapped || nextEvent.event === 'select') {
+        if (nextEvent.event === 'select') {
             gameStateStore.set('BOSS');
             currentEventIndexStore.set(-1);
             startBossEncounter();
@@ -106,7 +106,7 @@ export default function Shop() {
                                             e.stopPropagation();
                                             setShowInfo(index);
                                         }}
-                                        className="absolute top-2 right-2 w-6 h-6 opacity-70 hover:opacity-100 transition-opacity cursor-pointer"
+                                        className="absolute top-3 right-3 w-6 h-6 opacity-70 hover:opacity-100 transition-opacity cursor-pointer"
                                     >
                                         <img src="/asset/ui/info.svg" alt="info" className="w-full h-full pointer-events-none" />
                                     </div>

@@ -31,10 +31,14 @@ export const eventsStore = atom<EventType[]>([]); // Will be populated on map se
 export const currentEventIndexStore = atom<number>(0);
 export const traversalDirectionStore = atom<1 | -1>(1);
 export const battleCountStore = atom<number>(0);
+export const cycleCountStore = atom<number>(1); // 現在の周回数 (1-3)
 
 // アイテム獲得モーダル用のストア
 export const showItemRewardModalStore = atom<boolean>(false);
 export const rewardItemsStore = atom<NodeItem[]>([]);
+
+// ゲーム結果モーダル用のストア
+export const gameResultStore = atom<'clear' | 'over' | null>(null);
 
 const baseEnemyStats: Entity = {
   hp: 10,
@@ -68,21 +72,50 @@ export const addShopLog = (msg: ShopLog) => {
   shopLogStore.set([...shopLogStore.get(), msg]);
 };
 
-export const advanceToNextEvent = (): { event: EventType | null; wrapped: boolean } => {
+export const advanceToNextEvent = (): { event: EventType | null; wrapped: boolean; shouldResetMap?: boolean } => {
   const dir = traversalDirectionStore.get();
   const events = eventsStore.get();
   if (events.length <= 1) return { event: null, wrapped: false };
   const current = currentEventIndexStore.get();
   let next = current + dir;
   let wrapped = false;
+
+  // 左回り（後方）のラップ処理
   if (next <= 0) {
-    next = events.length - 1; // wrap, skip select node when going backward
-    wrapped = true;
+    const currentCycle = cycleCountStore.get();
+    if (currentCycle >= 3) {
+      // 3周目終了後はボス戦へ
+      return { event: 'select', wrapped: true };
+    } else {
+      // 次の周回へ
+      const nextCycle = currentCycle + 1;
+      cycleCountStore.set(nextCycle);
+      next = events.length - 1; // wrap backward, skip select node
+      wrapped = true;
+      currentEventIndexStore.set(next);
+      // マップをリセットして次の周回を開始
+      return { event: events[next], wrapped: true, shouldResetMap: true };
+    }
   }
+
+  // 右回り（前方）のラップ処理
   if (next >= events.length) {
-    next = 1;     // wrap forward, skip select node
-    wrapped = true;
+    const currentCycle = cycleCountStore.get();
+    if (currentCycle >= 3) {
+      // 3周目終了後はボス戦へ
+      return { event: 'select', wrapped: true };
+    } else {
+      // 次の周回へ
+      const nextCycle = currentCycle + 1;
+      cycleCountStore.set(nextCycle);
+      next = 1;     // wrap forward, skip select node
+      wrapped = true;
+      currentEventIndexStore.set(next);
+      // マップをリセットして次の周回を開始
+      return { event: events[next], wrapped: true, shouldResetMap: true };
+    }
   }
+
   currentEventIndexStore.set(next);
   return { event: events[next], wrapped };
 };
@@ -249,4 +282,70 @@ export const generateRewardItems = () => {
   ];
   rewardItemsStore.set(rewards);
   showItemRewardModalStore.set(true);
+};
+
+/**
+ * ゲーム状態を初期値にリセットする関数
+ */
+export const resetGameState = () => {
+  // プレイヤーを初期状態にリセット
+  playerStore.set({
+    hp: 120,
+    maxHp: 120,
+    atk: 20,
+    bp: 10,
+    maxBp: 10,
+  });
+
+  // 敵を初期状態にリセット
+  enemyStore.set({ ...baseEnemyStats });
+
+  // エディタを初期状態にリセット
+  mainNodesStore.set([
+    createItem('main-1', 'n=3', 'syntax'),
+  ]);
+
+  // アイテムを初期状態にリセット
+  itemNodesStore.set([
+    createItem('item-1', 'atk()', 'attack'),
+    createItem('item-2', 'atk+=1', 'attack'),
+    createItem('item-3', 'hp+=1', 'heal'),
+    createItem('item-4', 'bp+=1', 'behavior'),
+  ]);
+
+  // ショップアイテムを初期状態にリセット
+  shopItemsStore.set([
+    createItem('shop-1', 'atk+=1', 'attack'),
+    createItem('shop-2', 'hp+=2', 'heal'),
+    createItem('shop-3', 'n.times do', 'syntax'),
+    createItem('shop-4', 'atkType=water', 'element'),
+    createItem('shop-5', 'bp+=1', 'behavior'),
+    createItem('shop-6', 'if enemyType=fire', 'syntax'),
+    createItem('shop-7', 'atk+=2', 'attack'),
+    createItem('shop-8', 'hp+=1', 'heal'),
+    createItem('shop-9', 'enemyType=searchEnemyTypes()', 'element'),
+  ]);
+
+  // ログをクリア
+  logStore.set([]);
+
+  // ゲーム進行状態をリセット
+  gameStateStore.set('MAP');
+  eventsStore.set([]);
+  currentEventIndexStore.set(0);
+  traversalDirectionStore.set(1);
+  battleCountStore.set(0);
+  cycleCountStore.set(1);
+
+  // モーダルをクリア
+  showItemRewardModalStore.set(false);
+  rewardItemsStore.set([]);
+  gameResultStore.set(null);
+
+  // ショップ関連をリセット
+  selectedShopItemIndexStore.set(null);
+  shopFocusAreaStore.set(null);
+  shopLogStore.set([
+    'よく来たね！早速、手持ちのアイテムと交換する商品を選んでもいいし、EditerエリアとItemエリアで手持ちを整理してから選んでもいいよ！',
+  ]);
 };

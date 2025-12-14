@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '@nanostores/react';
-import { gameStateStore, eventsStore, currentEventIndexStore, traversalDirectionStore, startBattleEncounter, startBossEncounter } from '../store/game';
+import { gameStateStore, eventsStore, currentEventIndexStore, traversalDirectionStore, cycleCountStore, battleCountStore, startBattleEncounter, startBossEncounter, resetGameState } from '../store/game';
 import type { EventType } from '../store/game';
 
 const EVENTS_COUNT = 8;
@@ -13,6 +13,7 @@ export default function Map({ isModal = false }: { isModal?: boolean }) {
   const gameState = useStore(gameStateStore);
   const isBoss = gameState === 'BOSS';
   const traversalDir = useStore(traversalDirectionStore);
+  const cycleCount = useStore(cycleCountStore);
 
   const buildEvents = () => {
     const newEvents: EventType[] = ['select']; // first is always selection
@@ -28,6 +29,9 @@ export default function Map({ isModal = false }: { isModal?: boolean }) {
   };
 
   const startWithDirection = (direction: 'left' | 'right') => {
+    // ゲーム状態を完全にリセット
+    resetGameState();
+
     const base = buildEvents();
     const body = base.slice(1); // events excluding select
     const arranged = body; // order stays; direction handled by traversal
@@ -84,7 +88,14 @@ export default function Map({ isModal = false }: { isModal?: boolean }) {
 
   return (
     <div className={`flex flex-col items-center justify-center h-full px-4 md:px-8 ${isModal ? 'bg-transparent' : 'bg-gray-800'} text-white`}>
-      <div 
+      {/* 周回数表示（ボス戦中は非表示） */}
+      {events.length > 0 && !isBoss && (
+        <div className="mb-4 text-3xl font-bold text-yellow-400">
+          {cycleCount}周目 / 3周
+        </div>
+      )}
+
+      <div
         className="relative"
         ref={containerRef}
         style={{ width: boxSizeCss, height: boxSizeCss }}

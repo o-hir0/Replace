@@ -1,4 +1,4 @@
-import { playerStore, enemyStore, addLog, generateRewardItems } from '../store/game';
+import { playerStore, enemyStore, addLog, generateRewardItems, gameResultStore, gameStateStore } from '../store/game';
 import type { NodeItem } from '../store/game';
 import {
   findItemDefinitionByLabel,
@@ -151,6 +151,8 @@ export const executeGameLoop = async (nodes: NodeItem[]) => {
 
   // 敵のターン処理
   const enemy = enemyStore.get();
+  const isBoss = gameStateStore.get() === 'BOSS';
+
   if (enemy.hp > 0) {
     addLog(`敵のターン！BP: ${enemy.bp}`);
     await sleep(500);
@@ -159,11 +161,30 @@ export const executeGameLoop = async (nodes: NodeItem[]) => {
     addLog(`敵が${enemy.bp}回攻撃！合計ダメージ: ${damage}`);
 
     const currentPlayer = playerStore.get();
-    playerStore.setKey('hp', Math.max(0, currentPlayer.hp - damage));
+    const newHp = Math.max(0, currentPlayer.hp - damage);
+    playerStore.setKey('hp', newHp);
+
+    // HPが0になったらゲームオーバー
+    if (newHp <= 0) {
+      await sleep(500);
+      addLog("HPが0になった...ゲームオーバー");
+      await sleep(1000);
+      gameResultStore.set('over');
+      return;
+    }
   } else {
     addLog("敵を倒した！");
     await sleep(500);
-    // アイテム獲得モーダルを表示
+
+    // ボスを倒したらゲームクリア
+    if (isBoss) {
+      addLog("ボスを倒した！ゲームクリア！");
+      await sleep(1000);
+      gameResultStore.set('clear');
+      return;
+    }
+
+    // 通常の敵を倒した場合はアイテム獲得モーダルを表示
     generateRewardItems();
   }
 

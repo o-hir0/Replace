@@ -1,7 +1,7 @@
 'use client';
 
 import { useStore } from '@nanostores/react';
-import { mainNodesStore, logStore, gameStateStore, selectedShopItemIndexStore, shopFocusAreaStore, playerStore, itemNodesStore } from '../store/game';
+import { mainNodesStore, logStore, gameStateStore, selectedShopItemIndexStore, shopFocusAreaStore, playerStore, itemNodesStore, gameResultStore, resetGameState } from '../store/game';
 import { executeGameLoop } from '../lib/transpiler';
 import Stats from './Stats';
 import Editor from './Editor';
@@ -9,21 +9,32 @@ import Items from './Items';
 import Map from './Map';
 import Shop from './Shop';
 import ItemRewardModal from './ItemRewardModal';
+import GameResultModal from './GameResultModal';
 import { GameButton } from './GameButton';
 import { useEffect, useState } from 'react';
 import { getLatestSave } from '../server/controllers/getResult';
+import { useSearchParams } from 'next/navigation';
 
 export default function Game() {
     const logs = useStore(logStore);
     const gameState = useStore(gameStateStore);
     const player = useStore(playerStore);
+    const gameResult = useStore(gameResultStore);
     const [isRunning, setIsRunning] = useState(false);
     const [showMapModal, setShowMapModal] = useState(false);
+    const searchParams = useSearchParams();
 
     // Load initial state
     // Load initial state
     useEffect(() => {
         const loadState = async () => {
+            // 新規ゲームの場合はリセット
+            const isNewGame = searchParams.get('newGame') === 'true';
+            if (isNewGame) {
+                resetGameState();
+                return;
+            }
+
             const result = await getLatestSave();
             if (result) {
                 // Restore state from snapshot
@@ -72,7 +83,7 @@ export default function Game() {
             // If result is null, we stay with default initial state (New Game)
         };
         loadState();
-    }, []);
+    }, [searchParams]);
 
     // Sync state removed - we only save on explicit button click
 
@@ -179,6 +190,14 @@ export default function Game() {
 
             {/* Item Reward Modal */}
             <ItemRewardModal />
+
+            {/* Game Result Modal */}
+            {gameResult && (
+                <GameResultModal
+                    result={gameResult}
+                    onClose={() => gameResultStore.set(null)}
+                />
+            )}
         </div>
     );
 }

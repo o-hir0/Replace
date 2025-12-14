@@ -24,7 +24,7 @@ export default async function MyPage() {
                     <h1 className="text-2xl font-bold">My Page</h1>
                     <div className="flex gap-4">
                         <Link
-                            href="/"
+                            href="/?newGame=true"
                             className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-500 shadow-lg"
                         >
                             冒険に出る

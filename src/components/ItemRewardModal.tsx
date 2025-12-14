@@ -36,7 +36,7 @@ export default function ItemRewardModal() {
     const nextEvent = advanceToNextEvent();
     if (!nextEvent.event) return;
 
-    if (nextEvent.wrapped || nextEvent.event === 'select') {
+    if (nextEvent.event === 'select') {
       gameStateStore.set('BOSS');
       currentEventIndexStore.set(-1);
       startBossEncounter();

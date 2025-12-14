@@ -1,14 +1,24 @@
 'use client';
 
 import { useStore } from '@nanostores/react';
-import { mainNodesStore, itemNodesStore, gameStateStore, selectedShopItemIndexStore, setShopFocusArea } from '../store/game';
+import { mainNodesStore, itemNodesStore, gameStateStore, selectedShopItemIndexStore, cycleCountStore, setShopFocusArea } from '../store/game';
 import type { NodeItem } from '../store/game';
 
 export default function Editor() {
   const nodes = useStore(mainNodesStore);
   const gameState = useStore(gameStateStore);
   const selectedShopItemIndex = useStore(selectedShopItemIndexStore);
-  const disableEditing = gameState === 'SHOP' && selectedShopItemIndex !== null;
+  const cycleCount = useStore(cycleCountStore);
+
+  // 編集不可の条件：
+  // 1. ショップでアイテム選択中
+  // 2. 3周目のバトル中（ショップでは編集可能）
+  const isShop = gameState === 'SHOP';
+  const isBattle = gameState === 'BATTLE';
+  const isBoss = gameState === 'BOSS';
+  const disableEditing =
+    (isShop && selectedShopItemIndex !== null) ||
+    (cycleCount >= 3 && isBattle);
 
   const removeNode = (index: number) => {
     const nodeToRemove = nodes[index];
@@ -72,7 +82,14 @@ export default function Editor() {
           ))}
         </div>
       </div>
-      {disableEditing && (
+      {disableEditing && (cycleCount >= 3 && isBattle) && (
+        <div className="absolute inset-0 bg-black/50 z-10 pointer-events-none flex items-center justify-center">
+          <div className="text-white text-xl font-bold bg-black/70 px-6 py-3 rounded-lg">
+            ボス戦まで編集不可
+          </div>
+        </div>
+      )}
+      {disableEditing && gameState === 'SHOP' && selectedShopItemIndex !== null && (
         <div className="absolute inset-0 bg-black/50 z-10 pointer-events-none" aria-hidden />
       )}
     </div>
