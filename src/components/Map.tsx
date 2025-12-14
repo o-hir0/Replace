@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '@nanostores/react';
-import { gameStateStore, eventsStore, currentEventIndexStore, traversalDirectionStore, cycleCountStore, battleCountStore, startBattleEncounter, startBossEncounter, resetGameState, buildDefaultEvents, EVENTS_COUNT, bossSpriteStore } from '../store/game';
+import { gameStateStore, eventsStore, currentEventIndexStore, traversalDirectionStore, cycleCountStore, battleCountStore, startBattleEncounter, startBossEncounter, resetGameState, buildDefaultEvents, EVENTS_COUNT, bossSpriteStore, generateFixedRewardItems, showUpgradeModalStore } from '../store/game';
 
 export default function Map({ isModal = false }: { isModal?: boolean }) {
   const events = useStore(eventsStore);
@@ -27,14 +27,22 @@ export default function Map({ isModal = false }: { isModal?: boolean }) {
     const startIndex = dirValue === 1 ? 1 : evts.length - 1; // first real event depending on direction
     currentEventIndexStore.set(startIndex);
     const nextEvent = evts[startIndex];
+
     if (nextEvent === 'battle') {
-        gameStateStore.set('BATTLE');
-        startBattleEncounter();
+      gameStateStore.set('BATTLE');
+      startBattleEncounter();
     } else if (nextEvent === 'shop') {
-        gameStateStore.set('SHOP');
+      gameStateStore.set('SHOP');
     } else if (nextEvent === 'select') {
-        gameStateStore.set('BOSS');
-        startBossEncounter();
+      gameStateStore.set('BOSS');
+      startBossEncounter();
+    } else if (nextEvent === 'reward') {
+      // 固定報酬生成
+      generateFixedRewardItems();
+      // マップ表示のままモーダルを出す
+    } else if (nextEvent === 'upgrade') {
+      // アップグレードモーダル表示
+      showUpgradeModalStore.set(true);
     }
   };
 
@@ -90,62 +98,66 @@ export default function Map({ isModal = false }: { isModal?: boolean }) {
 
         {/* Central Boss/Start Node */}
         <div className={`absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full flex items-center justify-center z-10 border-4 border-gray-500 ${isBoss ? 'bg-yellow-300 ring-4 ring-purple-400 shadow-[0_0_25px_rgba(168,85,247,0.8)] scale-105' : 'bg-gray-300'}`}>
-           <img src={bossSprite} alt="Boss" className="w-32 h-32" />
+          <img src={bossSprite} alt="Boss" className="w-32 h-32" />
         </div>
 
         {/* Event Nodes */}
         {events.length > 0 && events.map((event, index) => {
-            const angle = (index / EVENTS_COUNT) * 2 * Math.PI - Math.PI / 2; // Start from top
-            const x = center.x + radius * Math.cos(angle);
-            const y = center.y + radius * Math.sin(angle);
-            
-            const isCurrent = index === currentIndex;
-            const isPast =
-              traversalDir === 1
-                ? index < currentIndex
-                : index > currentIndex || (index === 0 && currentIndex !== 0);
-            
-            return (
-                <div 
-                    key={index}
-                    className={`absolute w-16 h-16 rounded-full flex items-center justify-center border-2 
-                        ${isCurrent ? 'bg-yellow-400 border-yellow-600 scale-125 z-20' : 
-                          isPast ? 'bg-gray-600 border-gray-700' : 'bg-white border-gray-300'}
+          const angle = (index / EVENTS_COUNT) * 2 * Math.PI - Math.PI / 2; // Start from top
+          const x = center.x + radius * Math.cos(angle);
+          const y = center.y + radius * Math.sin(angle);
+
+          const isCurrent = index === currentIndex;
+          const isPast =
+            traversalDir === 1
+              ? index < currentIndex
+              : index > currentIndex || (index === 0 && currentIndex !== 0);
+
+          return (
+            <div
+              key={index}
+              className={`absolute w-16 h-16 rounded-full flex items-center justify-center border-2 
+                        ${isCurrent ? 'bg-yellow-400 border-yellow-600 scale-125 z-20' :
+                  isPast ? 'bg-gray-600 border-gray-700' : 'bg-white border-gray-300'}
                         transition-all duration-500`}
-                    style={{ left: x - 32, top: y - 32 }}
-                >
-                    <img 
-                      src={
-                        event === 'battle'
-                          ? '/asset/ui/attack.svg'
-                          : event === 'shop'
-                            ? '/asset/ui/store.svg'
-                            : '/asset/ui/select.svg'
-                      } 
-                      alt={event}
-                      className="w-8 h-8"
-                    />
-                </div>
-            );
+              style={{ left: x - 32, top: y - 32 }}
+            >
+              <img
+                src={
+                  event === 'battle'
+                    ? '/asset/ui/attack.svg'
+                    : event === 'shop'
+                      ? '/asset/ui/store.svg'
+                      : event === 'select'
+                        ? '/asset/ui/select.svg'
+                        : event === 'reward'
+                          ? '/asset/ui/element.svg'
+                          : '/asset/ui/behavior.svg' // upgrade
+                }
+                alt={event}
+                className="w-8 h-8"
+              />
+            </div>
+          );
         })}
       </div>
 
       {!isModal && (
-          <div className="flex gap-8 mt-8">
-              <button 
-                  onClick={() => startWithDirection('left')}
-                  className="px-8 py-4 bg-[#538E3A] hover:bg-green-500 rounded text-xl font-bold"
-              >
-                  左回り
-              </button>
-              <div className="text-2xl font-bold self-center">OR</div>
-              <button 
-                  onClick={() => startWithDirection('right')}
-                  className="px-8 py-4 bg-[#538E3A] hover:bg-green-500 rounded text-xl font-bold"
-              >
-                  右回り
-              </button>
-          </div>
+        <div className="flex gap-8 mt-8">
+          <button
+            onClick={() => startWithDirection('left')}
+            className="px-8 py-4 bg-[#538E3A] hover:bg-green-500 rounded text-xl font-bold"
+          >
+            左回り
+          </button>
+          <div className="text-2xl font-bold self-center">OR</div>
+          <button
+            onClick={() => startWithDirection('right')}
+            className="px-8 py-4 bg-[#538E3A] hover:bg-green-500 rounded text-xl font-bold"
+          >
+            右回り
+          </button>
+        </div>
       )}
     </div>
   );

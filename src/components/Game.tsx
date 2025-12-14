@@ -9,6 +9,7 @@ import Items from './Items';
 import Map from './Map';
 import Shop from './Shop';
 import ItemRewardModal from './ItemRewardModal';
+import UpgradeModal from './UpgradeModal';
 import GameResultModal from './GameResultModal';
 import { GameButton } from './GameButton';
 import { useEffect, useRef, useState } from 'react';
@@ -290,6 +291,9 @@ export default function Game() {
 
             {/* Item Reward Modal */}
             <ItemRewardModal />
+
+            {/* Upgrade Modal */}
+            <UpgradeModal />
 
             {/* Game Result Modal */}
             {gameResult && (
