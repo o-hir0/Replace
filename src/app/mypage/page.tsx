@@ -104,8 +104,15 @@ export default async function MyPage() {
                                             className="rounded-xl bg-gray-950 border border-gray-800 p-4 space-y-4"
                                         >
                                             <div className="flex justify-between items-center border-b border-gray-800 pb-2">
-                                                <div className="flex items-center gap-4">
-                                                    <span className="text-yellow-400 font-bold">Cycle: {result.cycle}</span>
+                                                <div className="flex flex-col gap-1">
+                                                    <div className="flex flex-wrap items-center gap-3 text-sm">
+                                                        <span className="text-yellow-400 font-bold">
+                                                            Map: 周回 {result.mapCycle ?? '-'} / イベント {result.mapEventIndex ?? '-'}
+                                                        </span>
+                                                        <span className="text-blue-300 font-semibold">
+                                                            Total Battles: {result.totalBattles ?? '-'}
+                                                        </span>
+                                                    </div>
                                                     {(() => {
                                                         const playLog = result.playLog as any || {};
                                                         const totalHpHealed = playLog.totalHpHealed || 0;
@@ -122,7 +129,7 @@ export default async function MyPage() {
                                                         );
 
                                                         return (
-                                                            <span className="text-purple-400 font-bold">Score: {score}</span>
+                                                            <span className="text-purple-400 font-bold text-sm">Score: {score}</span>
                                                         );
                                                     })()}
                                                 </div>
@@ -148,9 +155,9 @@ export default async function MyPage() {
                                                 <div className="bg-gray-900 p-3 rounded">
                                                     <h4 className="text-xs font-bold text-gray-400 uppercase mb-2">Status</h4>
                                                     <div className="grid grid-cols-3 gap-2 text-sm text-gray-300">
-                                                        <div>HP: <span className="text-white">{stats.hp}</span>/{stats.maxHp}</div>
+                                                        <div>HP: <span className="text-white">{stats.hp}</span></div>
                                                         <div>ATK: <span className="text-white">{stats.atk}</span></div>
-                                                        <div>BP: <span className="text-white">{stats.bp}</span>/{stats.maxBp}</div>
+                                                        <div>BP: <span className="text-white">{stats.bp}</span></div>
                                                     </div>
                                                 </div>
 

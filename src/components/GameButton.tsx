@@ -17,6 +17,7 @@ export function GameButton() {
                 itemNodesStore,
                 playerStore,
                 battleCountStore,
+                cycleCountStore,
                 gameStateStore,
                 eventsStore,
                 currentEventIndexStore,
@@ -26,7 +27,7 @@ export function GameButton() {
             const nodes = mainNodesStore.get();
             const items = itemNodesStore.get();
             const stats = playerStore.get();
-            const cycle = battleCountStore.get();
+            const totalBattlesForSave = battleCountStore.get();
             const playLog = gamePlayStatsStore.get();
 
             // Progress data
@@ -35,7 +36,10 @@ export function GameButton() {
                 currentEventIndex: currentEventIndexStore.get(),
                 gameState: gameStateStore.get(),
                 events: eventsStore.get(),
+                cycleCount: cycleCountStore.get(),
             };
+            const mapCycle = cycleCountStore.get();
+            const mapEventIndex = currentEventIndexStore.get();
 
             // Map current GameState to DB Status
             // If we are clicking this button, it's a Manual Save.
@@ -44,7 +48,12 @@ export function GameButton() {
             // Since this is "Save & Exit", it acts as a suspend. So "SAVED".
             const status = "SAVED";
 
-            await recordGameResult(cycle, nodes, items, stats, status, progress, { playLog });
+            await recordGameResult(totalBattlesForSave, nodes, items, stats, status, progress, {
+                totalBattles: totalBattlesForSave,
+                playLog,
+                mapCycle,
+                mapEventIndex,
+            });
             router.push("/mypage")
         } catch (error) {
             console.error(error)

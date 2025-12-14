@@ -92,7 +92,9 @@ export const gameResults = pgTable("game_results", {
   userId: text("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  cycle: integer("cycle").notNull(),
+  mapCycle: integer("map_cycle").notNull().default(1), // current lap on the map
+  mapEventIndex: integer("map_event_index").notNull().default(0), // current event index on the ring
+  totalBattles: integer("total_battles").notNull().default(0), // total battle encounters so far
   code: json("code").notNull(),
   status: text("status").notNull().default("SAVED"), // SAVED, COMPLETED, GAME_OVER
   createdAt: timestamp("created_at").defaultNow().notNull(),

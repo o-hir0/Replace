@@ -53,18 +53,14 @@ export interface GameVariables {
 export interface GameContext {
   player: {
     hp: number;
-    maxHp: number;
     atk: number;
     bp: number;
-    maxBp: number;
     atkType?: ElementType;
   };
   enemy: {
     hp: number;
-    maxHp: number;
     atk: number;
     bp: number;
-    maxBp: number;
     type?: ElementType;
   };
   variables: GameVariables;
@@ -214,12 +210,12 @@ export const itemDefinitions: Record<string, ItemDefinition> = {
     parameters: [{ name: 'value', type: 'value', default: 1 }],
     generateCode: (params) => `heal(${params?.value ?? 1});`,
     executeAction: async (context, params) => {
-      const { gamePlayStatsStore } = await import('../store/game');
-      const value = (params?.value as ValueType) ?? 1;
-      const healAmount = value;
-      const newHp = Math.min(context.player.maxHp, context.player.hp + healAmount);
-      context.updatePlayer({ hp: newHp });
-      context.log(`HPが${healAmount}回復！(HP: ${newHp}/${context.player.maxHp})`);
+    const { gamePlayStatsStore } = await import('../store/game');
+    const value = (params?.value as ValueType) ?? 1;
+    const healAmount = value;
+    const newHp = context.player.hp + healAmount;
+    context.updatePlayer({ hp: newHp });
+    context.log(`HPが${healAmount}回復！(HP: ${newHp})`);
 
       const stats = gamePlayStatsStore.get();
       gamePlayStatsStore.setKey('totalHpHealed', stats.totalHpHealed + healAmount);

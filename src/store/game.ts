@@ -3,10 +3,8 @@ import type { ElementType } from '../lib/itemDefinitions';
 
 export type Entity = {
   hp: number;
-  maxHp: number;
   atk: number;
   bp: number;
-  maxBp: number;
   type?: ElementType; // 敵の属性タイプ
   atkType?: ElementType; // プレイヤーの攻撃タイプ
 };
@@ -60,19 +58,15 @@ export const gameResultStore = atom<'clear' | 'over' | null>(null);
 
 const baseEnemyStats: Entity = {
   hp: 10,
-  maxHp: 10,
   atk: 20,
   bp: 5,
-  maxBp: 5,
   type: 'fire', // デフォルトの敵タイプ
 };
 
 const bossStats: Entity = {
   hp: 80,
-  maxHp: 80,
   atk: 30,
   bp: 8,
-  maxBp: 8,
   type: 'grass', // ボスのタイプ
 };
 
@@ -139,8 +133,8 @@ export const advanceToNextEvent = (): { event: EventType | null; wrapped: boolea
 };
 
 export const computeScaledEnemyStats = (count: number): Entity => {
-  const hp = baseEnemyStats.maxHp + count * 8;
-  const bp = baseEnemyStats.maxBp + Math.floor(count / 2);
+  const hp = baseEnemyStats.hp + count * 8;
+  const bp = baseEnemyStats.bp + Math.floor(count / 2);
   const atk = baseEnemyStats.atk + count * 2;
 
   // 敵のタイプをランダムに決定
@@ -149,10 +143,8 @@ export const computeScaledEnemyStats = (count: number): Entity => {
 
   return {
     hp,
-    maxHp: hp,
     atk,
     bp,
-    maxBp: bp,
     type: randomType,
   };
 };
@@ -266,10 +258,8 @@ export const shopItemsStore = atom<NodeItem[]>(generateRandomShopItems());
 
 const initialPlayer: Entity = {
   hp: 120,
-  maxHp: 120,
   atk: 20,
   bp: 1,
-  maxBp: 10,
   atkType: undefined,
 };
 

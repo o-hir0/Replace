@@ -1,7 +1,7 @@
 'use client';
 
 import { useStore } from '@nanostores/react';
-import { mainNodesStore, logStore, gameStateStore, selectedShopItemIndexStore, shopFocusAreaStore, playerStore, itemNodesStore, gameResultStore, resetGameState, type Entity, type NodeItem, type GameState, type EventType } from '../store/game';
+import { mainNodesStore, logStore, gameStateStore, selectedShopItemIndexStore, shopFocusAreaStore, playerStore, itemNodesStore, gameResultStore, resetGameState, cycleCountStore, battleCountStore, currentEventIndexStore, gamePlayStatsStore, type Entity, type NodeItem, type GameState, type EventType } from '../store/game';
 import { executeGameLoop } from '../lib/transpiler';
 import Stats from './Stats';
 import Editor from './Editor';
@@ -20,6 +20,7 @@ type ProgressSnapshot = {
     currentEventIndex?: number;
     gameState?: GameState;
     events?: EventType[];
+    cycleCount?: number;
 };
 
 type StructuredStatsSnapshot = {
@@ -34,7 +35,8 @@ const isProgressSnapshot = (value: unknown): value is ProgressSnapshot => {
     const progress = value as ProgressSnapshot;
     const hasNumbers =
         (progress.battleCount === undefined || typeof progress.battleCount === 'number') &&
-        (progress.currentEventIndex === undefined || typeof progress.currentEventIndex === 'number');
+        (progress.currentEventIndex === undefined || typeof progress.currentEventIndex === 'number') &&
+        (progress.cycleCount === undefined || typeof progress.cycleCount === 'number');
     const hasGameState = progress.gameState === undefined || typeof progress.gameState === 'string';
     const hasEvents =
         progress.events === undefined ||
@@ -47,10 +49,8 @@ const hasEntityFields = (value: unknown): value is Entity => {
     const v = value as Entity;
     return (
         typeof v.hp === 'number' &&
-        typeof v.maxHp === 'number' &&
         typeof v.atk === 'number' &&
-        typeof v.bp === 'number' &&
-        typeof v.maxBp === 'number'
+        typeof v.bp === 'number'
     );
 };
 
@@ -117,6 +117,7 @@ export default function Game() {
                                 import('../store/game').then(mod => {
                                     if (progress.battleCount !== undefined) mod.battleCountStore.set(progress.battleCount);
                                     if (progress.currentEventIndex !== undefined) mod.currentEventIndexStore.set(progress.currentEventIndex);
+                                    if (progress.cycleCount !== undefined) mod.cycleCountStore.set(progress.cycleCount);
                                     if (progress.gameState) mod.gameStateStore.set(progress.gameState);
                                     if (progress.events) mod.eventsStore.set(progress.events);
                                 });
@@ -129,18 +130,19 @@ export default function Game() {
                                 import('../store/game').then(mod => {
                                     if (progress.battleCount !== undefined) mod.battleCountStore.set(progress.battleCount);
                                     if (progress.currentEventIndex !== undefined) mod.currentEventIndexStore.set(progress.currentEventIndex);
+                                    if (progress.cycleCount !== undefined) mod.cycleCountStore.set(progress.cycleCount);
                                     if (progress.gameState) mod.gameStateStore.set(progress.gameState);
                                     if (progress.events) mod.eventsStore.set(progress.events);
                                 });
                             }
                         }
 
-                        // Restore Play Log Stats if available in snapshot
-                        if (snap.playLog) {
-                            import('../store/game').then(mod => {
-                                mod.gamePlayStatsStore.set(snap.playLog as any);
-                            });
-                        }
+                    }
+                    // Restore Play Log Stats from dedicated column if available
+                    if (result.playLog) {
+                        import('../store/game').then(mod => {
+                            mod.gamePlayStatsStore.set(result.playLog as any);
+                        });
                     }
                     if (isNodeArray(result.itemsSnapshot)) {
                         itemNodesStore.set(result.itemsSnapshot);
@@ -162,10 +164,11 @@ export default function Game() {
                     const hasProgress =
                         (result.statsSnapshot && isStructuredStatsSnapshot(result.statsSnapshot) && !!(result.statsSnapshot as any).progress) ||
                         (result.statsSnapshot && isLegacyStatsSnapshot(result.statsSnapshot) && !!(result.statsSnapshot as any).progress);
-                    if (result.cycle && !hasProgress) {
-                        // Fallback using cycle if progress not saved (legacy)
+                    if (!hasProgress) {
                         import('../store/game').then(mod => {
-                            mod.battleCountStore.set(result.cycle - 1); // Cycle was battleCount + 1 approximation
+                            if (typeof result.mapCycle === 'number') mod.cycleCountStore.set(result.mapCycle);
+                            if (typeof result.mapEventIndex === 'number') mod.currentEventIndexStore.set(result.mapEventIndex);
+                            if (typeof result.totalBattles === 'number') mod.battleCountStore.set(result.totalBattles);
                         });
                     }
                 } else {

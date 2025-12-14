@@ -1,4 +1,4 @@
-import { playerStore, enemyStore, addLog, generateRewardItems, gameResultStore, gameStateStore, itemNodesStore, battleCountStore, currentEventIndexStore, eventsStore, resetGameState } from '../store/game';
+import { playerStore, enemyStore, addLog, generateRewardItems, gameResultStore, gameStateStore, itemNodesStore, battleCountStore, currentEventIndexStore, eventsStore, resetGameState, cycleCountStore } from '../store/game';
 import type { NodeItem } from '../store/game';
 import {
   findItemDefinitionByLabel,
@@ -46,6 +46,8 @@ const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(r
 export const executeGameLoop = async (nodes: NodeItem[]) => {
   addLog(`コード実行中...`);
   const { gamePlayStatsStore } = await import('../store/game');
+  const startingPlayerBp = playerStore.get().bp; // ターン開始時のBPを保持
+  const startingEnemyBp = enemyStore.get().bp;   // ターン開始時の敵BPを保持
 
   // ゲームコンテキストの構築
   const gameContext: GameContext = {
@@ -82,8 +84,19 @@ export const executeGameLoop = async (nodes: NodeItem[]) => {
         currentEventIndex: currentEventIndexStore.get(),
         gameState: gameStateStore.get(),
         events: eventsStore.get(),
+        cycleCount: cycleCountStore.get(),
       };
-      await recordGameResult(battleCountStore.get(), nodes, items, stats, status, progress);
+      const { gamePlayStatsStore } = await import('../store/game');
+      const playLog = gamePlayStatsStore.get();
+      const mapCycle = cycleCountStore.get();
+      const mapEventIndex = currentEventIndexStore.get();
+      const totalBattles = battleCountStore.get();
+      await recordGameResult(battleCountStore.get(), nodes, items, stats, status, progress, {
+        mapCycle,
+        mapEventIndex,
+        totalBattles,
+        playLog,
+      });
     } catch (e) {
       console.error('Failed to save result status', e);
     }
@@ -140,8 +153,8 @@ export const executeGameLoop = async (nodes: NodeItem[]) => {
 
     await sleep(1000);
     addLog("ターン終了。BPをリセット。");
-    playerStore.setKey('bp', playerStore.get().maxBp);
-    enemyStore.setKey('bp', enemyStore.get().maxBp);
+    playerStore.setKey('bp', startingPlayerBp);
+    enemyStore.setKey('bp', startingEnemyBp);
   };
 
   // 事前バリデーション: enemyType未設定で条件分岐を使う、またはend不足

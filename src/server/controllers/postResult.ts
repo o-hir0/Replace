@@ -7,13 +7,13 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 
 export const recordGameResult = async (
-    cycle: number,
+    totalBattlesInput: number,
     nodes: any[], // NodeItem[]
     items: any[], // NodeItem[]
     stats: any,   // Entity
     status: "SAVED" | "COMPLETED" | "GAME_OVER" = "SAVED",
     progress?: any, // New: { battleCount, currentEventIndex, gameState, events }
-    options?: { forceNew?: boolean; playLog?: any }
+    options?: { forceNew?: boolean; playLog?: any; mapCycle?: number; mapEventIndex?: number; totalBattles?: number }
 ) => {
     const session = await auth();
     const userId = session?.user?.id;
@@ -26,6 +26,10 @@ export const recordGameResult = async (
         player: stats,
         progress: progress || null,
     };
+
+    const mapCycle = options?.mapCycle ?? 1;
+    const mapEventIndex = options?.mapEventIndex ?? 0;
+    const totalBattles = options?.totalBattles ?? totalBattlesInput ?? 0;
 
     if (status === 'SAVED' && !options?.forceNew) {
         const existingSave = await db.query.gameResults.findFirst({
@@ -40,7 +44,9 @@ export const recordGameResult = async (
             // Update existing save
             const result = await db.update(gameResults)
                 .set({
-                    cycle,
+                    mapCycle,
+                    mapEventIndex,
+                    totalBattles,
                     code: nodes,
                     itemsSnapshot: items,
                     statsSnapshot: statsSnapshot,
@@ -68,7 +74,9 @@ export const recordGameResult = async (
         if (existingSave) {
             const result = await db.update(gameResults)
                 .set({
-                    cycle,
+                    mapCycle,
+                    mapEventIndex,
+                    totalBattles,
                     code: nodes,
                     itemsSnapshot: items,
                     statsSnapshot: statsSnapshot,
@@ -87,7 +95,9 @@ export const recordGameResult = async (
     // Insert new record (first save or when no convertible SAVED exists)
     const result = await db.insert(gameResults).values({
         userId: userId,
-        cycle,
+        mapCycle,
+        mapEventIndex,
+        totalBattles,
         code: nodes,
         itemsSnapshot: items,
         statsSnapshot: statsSnapshot,
