@@ -23,7 +23,7 @@ export default function Items() {
 
   return (
     <div
-      className="flex flex-col bg-gray-600 p-4 h-full overflow-y-auto relative"
+      className={`flex flex-col bg-gray-600 p-4 h-full relative ${isLocked && !isSwapMode ? 'overflow-hidden' : 'overflow-y-auto'}`}
       onMouseEnter={() => { if (isShop) setShopFocusArea('items'); }}
       onMouseLeave={() => { if (isShop) setShopFocusArea(null); }}
     >

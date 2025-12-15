@@ -55,7 +55,7 @@ export default function Editor() {
 
   return (
     <div
-      className="flex flex-col bg-gray-700 p-4 h-full overflow-y-auto relative"
+      className={`flex flex-col bg-gray-700 p-4 h-full relative ${disableEditing ? 'overflow-hidden' : 'overflow-y-auto'}`}
       onMouseEnter={() => { if (gameState === 'SHOP') setShopFocusArea('editor'); }}
       onMouseLeave={() => { if (gameState === 'SHOP') setShopFocusArea(null); }}
     >
