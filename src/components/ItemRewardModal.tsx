@@ -11,6 +11,8 @@ import {
   advanceToNextEvent,
   startBattleEncounter,
   startBossEncounter,
+  generateFixedRewardItems,
+  showUpgradeModalStore,
 } from '../store/game';
 import { getItemDescription } from '../lib/itemDefinitions';
 import { useState } from 'react';
@@ -22,6 +24,9 @@ export default function ItemRewardModal() {
   const [showInfo, setShowInfo] = useState<number | null>(null);
 
   if (!showModal) return null;
+
+  const displayItems = rewardItems.length > 4 ? rewardItems.slice(0, 4) : rewardItems;
+  const hiddenCount = rewardItems.length - displayItems.length;
 
   const handleNext = () => {
     // アイテムをインベントリに追加
@@ -45,6 +50,10 @@ export default function ItemRewardModal() {
       startBattleEncounter();
     } else if (nextEvent.event === 'shop') {
       gameStateStore.set('SHOP');
+    } else if (nextEvent.event === 'reward') {
+      generateFixedRewardItems();
+    } else if (nextEvent.event === 'upgrade') {
+      showUpgradeModalStore.set(true);
     }
   };
 
@@ -55,8 +64,8 @@ export default function ItemRewardModal() {
           アイテムを獲得した！
         </h2>
 
-        <div className="flex justify-center gap-6 mb-8">
-          {rewardItems.map((item, index) => {
+        <div className="flex flex-wrap justify-center gap-6 mb-8">
+          {displayItems.map((item, index) => {
             const isHovered = hoveredItemIndex === index;
             const isShowingInfo = showInfo === index;
 
@@ -114,6 +123,11 @@ export default function ItemRewardModal() {
               </div>
             );
           })}
+          {hiddenCount > 0 && (
+            <div className="flex items-center justify-center w-[140px] h-[140px] text-yellow-400 font-bold text-xl">
+              他 {hiddenCount} 個...
+            </div>
+          )}
         </div>
 
         <div className="flex justify-center">

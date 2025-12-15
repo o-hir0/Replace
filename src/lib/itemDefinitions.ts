@@ -3,7 +3,7 @@
  * ゲーム内で使用できるコード片アイテムを汎用的に定義
  */
 
-export type ItemCategory = '制御構文' | '攻撃' | '行動' | 'HP' | '敵属性';
+export type ItemCategory = '制御構文' | '攻撃' | '行動' | 'HP' | '敵属性' | 'デバフ';
 
 export type ValueType = 1 | 2 | 3;
 export type ElementType = 'water' | 'fire' | 'grass';
@@ -210,12 +210,12 @@ export const itemDefinitions: Record<string, ItemDefinition> = {
     parameters: [{ name: 'value', type: 'value', default: 1 }],
     generateCode: (params) => `heal(${params?.value ?? 1});`,
     executeAction: async (context, params) => {
-    const { gamePlayStatsStore } = await import('../store/game');
-    const value = (params?.value as ValueType) ?? 1;
-    const healAmount = value;
-    const newHp = context.player.hp + healAmount;
-    context.updatePlayer({ hp: newHp });
-    context.log(`HPが${healAmount}回復！(HP: ${newHp})`);
+      const { gamePlayStatsStore } = await import('../store/game');
+      const value = (params?.value as ValueType) ?? 1;
+      const healAmount = value;
+      const newHp = context.player.hp + healAmount;
+      context.updatePlayer({ hp: newHp });
+      context.log(`HPが${healAmount}回復！(HP: ${newHp})`);
 
       const stats = gamePlayStatsStore.get();
       gamePlayStatsStore.setKey('totalHpHealed', stats.totalHpHealed + healAmount);
@@ -265,6 +265,44 @@ export const itemDefinitions: Record<string, ItemDefinition> = {
       context.updatePlayer({ atkType: type });
       const typeNames = { water: '水', fire: '炎', grass: '草' };
       context.log(`攻撃タイプを${typeNames[type]}に設定`);
+      await context.sleep(200);
+    },
+  },
+  // enemyAtk-=X: 敵攻撃力減少
+  'enemy_atk_decrease': {
+    id: 'enemy_atk_decrease',
+    label: 'enemyAtk-=X',
+    description: '敵の攻撃力を減少させる。',
+    category: 'デバフ',
+    multiSelect: true,
+    parameters: [{ name: 'value', type: 'value', default: 1 }],
+    generateCode: (params) => `enemy_atk_dec(${params?.value ?? 1});`,
+    executeAction: async (context, params) => {
+      const value = (params?.value as ValueType) ?? 1;
+      const decrease = value;
+      // 1未満にはならないようにする
+      const newAtk = Math.max(1, context.enemy.atk - decrease);
+      context.updateEnemy({ atk: newAtk });
+      context.log(`敵攻撃力が${decrease}減少！(ATK: ${newAtk})`);
+      await context.sleep(200);
+    },
+  },
+
+  // enemyBp-=X: 敵BP減少
+  'enemy_bp_decrease': {
+    id: 'enemy_bp_decrease',
+    label: 'enemyBp-=X',
+    description: '敵の行動ポイントを減少させる。',
+    category: 'デバフ',
+    multiSelect: true,
+    parameters: [{ name: 'value', type: 'value', default: 1 }],
+    generateCode: (params) => `enemy_bp_dec(${params?.value ?? 1});`,
+    executeAction: async (context, params) => {
+      const value = (params?.value as ValueType) ?? 1;
+      // 0未満にはならないようにする
+      const newBp = Math.max(0, context.enemy.bp - value);
+      context.updateEnemy({ bp: newBp });
+      context.log(`敵BP-${value} (BP: ${newBp})`);
       await context.sleep(200);
     },
   },
@@ -330,6 +368,13 @@ export const extractParametersFromLabel = (label: string): Record<string, ValueT
   const incrementMatch = label.match(/^(atk|bp|hp)\+=(\d+)$/);
   if (incrementMatch) {
     params.value = parseInt(incrementMatch[2]) as ValueType;
+    return params;
+  }
+
+  // enemyAtk-=X, enemyBp-=X
+  const decreaseMatch = label.match(/^(enemyAtk|enemyBp)-=(\d+)$/);
+  if (decreaseMatch) {
+    params.value = parseInt(decreaseMatch[2]) as ValueType;
     return params;
   }
 

@@ -9,7 +9,7 @@ export type Entity = {
   atkType?: ElementType; // プレイヤーの攻撃タイプ
 };
 
-export type NodeType = 'attack' | 'heal' | 'syntax' | 'behavior' | 'element';
+export type NodeType = 'attack' | 'heal' | 'syntax' | 'behavior' | 'element' | 'debuff';
 
 export type NodeItem = {
   id: string;
@@ -20,7 +20,7 @@ export type NodeItem = {
 };
 
 export type GameState = 'START' | 'MAP' | 'BATTLE' | 'SHOP' | 'BOSS';
-export type EventType = 'select' | 'battle' | 'shop';
+export type EventType = 'select' | 'battle' | 'shop' | 'reward' | 'upgrade';
 export type ShopFocusArea = 'shop' | 'editor' | 'items' | null;
 export type ShopLog = string;
 
@@ -29,17 +29,26 @@ const pickRandomEnemySprite = () => enemySpriteOptions[Math.floor(Math.random() 
 
 export const EVENTS_COUNT = 8;
 
-export const buildDefaultEvents = () => {
-  const newEvents: EventType[] = ['select']; // first is always selection
-  for (let i = 1; i < EVENTS_COUNT; i++) {
-    if (i === EVENTS_COUNT - 1) {
-      newEvents.push('battle'); // Boss (treated as battle for now)
-    } else {
-      // Simple alternating pattern for demo
-      newEvents.push((i - 1) % 2 === 0 ? 'battle' : 'shop');
-    }
+export const buildDefaultEvents = (cycle: number = 1): EventType[] => {
+  // New Cycle Pattern:
+  // 1-2: Battle -> Upgrade -> Battle -> Reward(Fixed) ... -> Battle
+  // 3+: Battle -> Upgrade -> Battle -> Upgrade ... -> Shop (Before Boss)
+  const rewardNode = cycle >= 3 ? 'upgrade' : 'reward';
+
+  // 1: Battle
+  // 2: Upgrade
+  // 3: Battle
+  // 4: Reward / Upgrade
+  // 5: Battle
+  // 6: Battle
+  // 7: Shop / Battle (Cycle 3+ is Shop)
+  if (cycle >= 3) {
+    // 3+: ... -> Battle -> Shop(7)
+    return ['select', 'battle', 'upgrade', 'battle', rewardNode, 'battle', 'battle', 'shop'];
+  } else {
+    // 1-2: ... -> Shop(6) -> Battle(7) (Original)
+    return ['select', 'battle', 'upgrade', 'battle', rewardNode, 'battle', 'shop', 'battle'];
   }
-  return newEvents;
 };
 
 export const gameStateStore = atom<GameState>('MAP'); // Start at MAP for now to test
@@ -53,20 +62,23 @@ export const cycleCountStore = atom<number>(1); // 現在の周回数 (1-3)
 export const showItemRewardModalStore = atom<boolean>(false);
 export const rewardItemsStore = atom<NodeItem[]>([]);
 
+// アップグレードモーダル用のストア
+export const showUpgradeModalStore = atom<boolean>(false);
+
 // ゲーム結果モーダル用のストア
 export const gameResultStore = atom<'clear' | 'over' | null>(null);
 
 const baseEnemyStats: Entity = {
-  hp: 10,
-  atk: 20,
-  bp: 5,
+  hp: 20,
+  atk: 10,
+  bp: 1,
   type: 'fire', // デフォルトの敵タイプ
 };
 
 const bossStats: Entity = {
-  hp: 80,
+  hp: 1500,
   atk: 30,
-  bp: 8,
+  bp: 3,
   type: 'grass', // ボスのタイプ
 };
 
@@ -102,11 +114,16 @@ export const advanceToNextEvent = (): { event: EventType | null; wrapped: boolea
       // 次の周回へ
       const nextCycle = currentCycle + 1;
       cycleCountStore.set(nextCycle);
-      next = events.length - 1; // wrap backward, skip select node
+
+      // イベント情報を更新 (3周目以降の変化などを反映)
+      const nextEvents = buildDefaultEvents(nextCycle);
+      eventsStore.set(nextEvents);
+
+      next = nextEvents.length - 1; // wrap backward, skip select node
       wrapped = true;
       currentEventIndexStore.set(next);
       // マップをリセットして次の周回を開始
-      return { event: events[next], wrapped: true, shouldResetMap: true };
+      return { event: nextEvents[next], wrapped: true, shouldResetMap: true };
     }
   }
 
@@ -120,11 +137,16 @@ export const advanceToNextEvent = (): { event: EventType | null; wrapped: boolea
       // 次の周回へ
       const nextCycle = currentCycle + 1;
       cycleCountStore.set(nextCycle);
+
+      // イベント情報を更新 (3周目以降の変化などを反映)
+      const nextEvents = buildDefaultEvents(nextCycle);
+      eventsStore.set(nextEvents);
+
       next = 1;     // wrap forward, skip select node
       wrapped = true;
       currentEventIndexStore.set(next);
       // マップをリセットして次の周回を開始
-      return { event: events[next], wrapped: true, shouldResetMap: true };
+      return { event: nextEvents[next], wrapped: true, shouldResetMap: true };
     }
   }
 
@@ -133,9 +155,18 @@ export const advanceToNextEvent = (): { event: EventType | null; wrapped: boolea
 };
 
 export const computeScaledEnemyStats = (count: number): Entity => {
-  const hp = baseEnemyStats.hp + count * 8;
-  const bp = baseEnemyStats.bp + Math.floor(count / 2);
-  const atk = baseEnemyStats.atk + count * 2;
+  const cycle = cycleCountStore.get();
+
+  // バトル数による増加
+  let hp = baseEnemyStats.hp + count * 30;
+  let bp = baseEnemyStats.bp + Math.floor(count / 4);
+  let atk = baseEnemyStats.atk + Math.floor(count / 2);
+
+  // 周回数による大幅な難易度上昇 (2周目以降)
+  if (cycle > 1) {
+    hp += (cycle - 1) * 50;
+    atk += (cycle - 1);
+  }
 
   // 敵のタイプをランダムに決定
   const types: ElementType[] = ['water', 'fire', 'grass'];
@@ -215,42 +246,95 @@ export const createItem = (id: string, label: string, type: NodeType): NodeItem 
 });
 
 /**
- * ランダムにアイテムを生成する関数
+ * ランダムにアイテムを生成する関数 (重み付けあり)
  */
-const generateRandomItem = (id: string): NodeItem => {
-  const itemPool = [
-    { label: 'atk+=1', type: 'attack' as NodeType },
-    { label: 'atk+=2', type: 'attack' as NodeType },
-    { label: 'atk+=3', type: 'attack' as NodeType },
-    { label: 'hp+=1', type: 'heal' as NodeType },
-    { label: 'hp+=2', type: 'heal' as NodeType },
-    { label: 'hp+=3', type: 'heal' as NodeType },
-    { label: 'bp+=1', type: 'behavior' as NodeType },
-    { label: 'bp+=2', type: 'behavior' as NodeType },
-    { label: 'bp+=3', type: 'behavior' as NodeType },
-    { label: 'n=1', type: 'syntax' as NodeType },
-    { label: 'n=2', type: 'syntax' as NodeType },
-    { label: 'n=3', type: 'syntax' as NodeType },
-    { label: 'n.times do', type: 'syntax' as NodeType },
-    { label: 'end', type: 'syntax' as NodeType },
-    { label: 'atk()', type: 'attack' as NodeType },
-    { label: 'atkType=water', type: 'element' as NodeType },
-    { label: 'atkType=fire', type: 'element' as NodeType },
-    { label: 'atkType=grass', type: 'element' as NodeType },
-    { label: 'enemyType=searchEnemyTypes()', type: 'element' as NodeType },
-    { label: 'if enemyType=water', type: 'syntax' as NodeType },
-    { label: 'if enemyType=fire', type: 'syntax' as NodeType },
-    { label: 'if enemyType=grass', type: 'syntax' as NodeType },
-  ];
+const generateRandomItem = (id: string, options?: { minRarity?: 'rare' }): NodeItem => {
+  let rand = Math.random();
 
-  const randomItem = itemPool[Math.floor(Math.random() * itemPool.length)];
-  return createItem(id, randomItem.label, randomItem.type);
+  // 最低レアリティ保証がある場合
+  if (options?.minRarity === 'rare') {
+    // 0.70 (Rare開始) 〜 1.0 の間で再抽選
+    rand = 0.70 + (Math.random() * 0.30);
+  }
+
+  // 確率分布定義
+  // Common (40%): 基本的な攻撃、構文
+  // Uncommon (30%): 少し便利なアイテム
+  // Rare (20%): 基本強化 (+1)
+  // Epic (7%): 強力な強化 (+2)
+  // Legendary (2.5%): 超強力な強化 (+3)
+  // Mythic (0.5%): 神話級強化 (+4)
+
+  let item = { label: 'atk()', type: 'attack' as NodeType };
+
+  if (rand < 0.40) {
+    // Common
+    const pool = [
+      { label: 'n=2', type: 'syntax' as NodeType },
+      { label: 'end', type: 'syntax' as NodeType },
+    ];
+    item = pool[Math.floor(Math.random() * pool.length)];
+  } else if (rand < 0.70) {
+    // Uncommon
+    const pool = [
+      { label: 'hp+=1', type: 'heal' as NodeType },
+      { label: 'bp+=1', type: 'behavior' as NodeType },
+      { label: 'n.times do', type: 'syntax' as NodeType },
+      // 属性攻撃タイプ
+      { label: 'atkType=water', type: 'element' as NodeType },
+      { label: 'atkType=fire', type: 'element' as NodeType },
+      { label: 'atkType=grass', type: 'element' as NodeType },
+    ];
+    item = pool[Math.floor(Math.random() * pool.length)];
+  } else if (rand < 0.90) {
+    // Rare
+    const pool = [
+      { label: 'atk+=1', type: 'attack' as NodeType },
+      { label: 'enemyAtk-=1', type: 'debuff' as NodeType },
+      { label: 'n=3', type: 'syntax' as NodeType },
+      { label: 'atk()', type: 'attack' as NodeType },
+      // 敵属性判定
+      { label: 'if enemyType=water', type: 'element' as NodeType },
+      { label: 'if enemyType=fire', type: 'element' as NodeType },
+      { label: 'if enemyType=grass', type: 'element' as NodeType },
+    ];
+    item = pool[Math.floor(Math.random() * pool.length)];
+  } else if (rand < 0.97) {
+    // Epic
+    const pool = [
+      { label: 'atk+=2', type: 'attack' as NodeType },
+      { label: 'bp+=2', type: 'behavior' as NodeType },
+      { label: 'hp+=2', type: 'heal' as NodeType },
+    ];
+    item = pool[Math.floor(Math.random() * pool.length)];
+  } else if (rand < 0.995) {
+    // Legendary
+    const pool = [
+      { label: 'atk+=3', type: 'attack' as NodeType },
+      { label: 'bp+=3', type: 'behavior' as NodeType },
+      { label: 'hp+=3', type: 'heal' as NodeType },
+    ];
+    item = pool[Math.floor(Math.random() * pool.length)];
+  } else {
+    // Mythic
+    const pool = [
+      { label: 'atk+=4', type: 'attack' as NodeType },
+      { label: 'bp+=4', type: 'behavior' as NodeType },
+      { label: 'hp+=4', type: 'heal' as NodeType },
+      { label: 'enemyBp-=1', type: 'debuff' as NodeType },
+    ];
+    item = pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  return createItem(id, item.label, item.type);
 };
 
 const generateRandomShopItems = (count: number = 6): NodeItem[] => {
-  return Array.from({ length: count }, (_, idx) =>
-    generateRandomItem(`shop-${Date.now()}-${idx}`)
-  );
+  return Array.from({ length: count }, (_, idx) => {
+    // 最初の1枠は必ずRare以上
+    const options = idx === 0 ? { minRarity: 'rare' as const } : undefined;
+    return generateRandomItem(`shop-${Date.now()}-${idx}`, options);
+  });
 };
 
 // Shop items (より汎用的な定義)
@@ -270,7 +354,6 @@ export const enemySpriteStore = atom<string>(enemySpriteOptions[0]);
 export const bossSpriteStore = atom<string>(enemySpriteOptions[0]);
 
 const initialMainNodes: NodeItem[] = [
-  createItem('main-1', 'n=3', 'syntax'),
 ];
 
 export const mainNodesStore = atom<NodeItem[]>(initialMainNodes);
@@ -278,19 +361,10 @@ export const mainNodesStore = atom<NodeItem[]>(initialMainNodes);
 // 初期アイテム（汎用的な定義）
 const initialItems: NodeItem[] = [
   createItem('item-1', 'atk()', 'attack'),
-  createItem('item-2', 'atk+=1', 'attack'),
-  createItem('item-3', 'hp+=1', 'heal'),
-  createItem('item-4', 'bp+=1', 'behavior'),
-  createItem('item-5', 'enemyType=searchEnemyTypes()', 'element'),
-  createItem('item-6', 'if enemyType=water', 'element'),
-  createItem('item-7', 'if enemyType=fire', 'element'),
-  createItem('item-8', 'if enemyType=grass', 'element'),
-  createItem('item-9', 'end', 'syntax'),
-  createItem('item-10', 'end', 'syntax'),
-  createItem('item-11', 'atkType=water', 'element'),
-  createItem('item-12', 'atkType=grass', 'element'),
-  createItem('item-13', 'atkType=fire', 'element'),
-  createItem('item-14', 'n.times do', 'syntax'),
+  createItem('item-2', 'hp+=1', 'heal'),
+  createItem('item-3', 'bp+=1', 'behavior'),
+  createItem('item-4', 'enemyType=searchEnemyTypes()', 'element'),
+  createItem('item-5', 'atk+=1', 'attack'),
 ];
 
 export const itemNodesStore = atom<NodeItem[]>(initialItems);
@@ -300,6 +374,7 @@ export const logStore = atom<string[]>([]);
 export const addLog = (msg: string) => {
   logStore.set([...logStore.get(), msg]);
 };
+
 
 // プレイ統計情報
 export type GamePlayStats = {
@@ -332,10 +407,38 @@ export const gamePlayStatsStore = map<GamePlayStats>({ ...initialStats });
 export const generateRewardItems = () => {
   const rewards = [
     generateRandomItem(`reward-${Date.now()}-1`),
-    generateRandomItem(`reward-${Date.now()}-2`),
   ];
   rewardItemsStore.set(rewards);
   showItemRewardModalStore.set(true);
+
+  // バトル終了時に属性をリセット（報酬受け取りのタイミング）
+  const player = playerStore.get();
+  playerStore.set({ ...player, atkType: undefined });
+};
+
+/**
+ * 固定報酬を生成する関数 (サイクルに応じて報酬変化)
+ */
+export const generateFixedRewardItems = () => {
+  const cycle = cycleCountStore.get();
+  let rewards: NodeItem[] = [];
+
+  if (cycle === 1) {
+    // 1周目: ランダム(Rare以上) x2 + atk+=1
+    rewards = [
+      generateRandomItem(`fixed-c1-1-${Date.now()}`),
+      generateRandomItem(`fixed-c1-2-${Date.now()}`),
+    ];
+  } else if (cycle === 2) {
+    rewards = [
+      generateRandomItem(`fixed-c2-1-${Date.now()}`, { minRarity: 'rare' as const }),
+      generateRandomItem(`fixed-c2-2-${Date.now()}`, { minRarity: 'rare' as const }),
+    ];
+  }
+
+  rewardItemsStore.set(rewards);
+  showItemRewardModalStore.set(true);
+
 };
 
 /**
